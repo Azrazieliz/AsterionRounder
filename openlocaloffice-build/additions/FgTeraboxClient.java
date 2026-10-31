@@ -161,9 +161,9 @@ public final class FgTeraboxClient {
             JSONObject thumbs=item.optJSONObject("thumbs");
             if(thumbs==null)continue;
             String url=thumbs.optString("url3",thumbs.optString("url2",""));
-            String path=item.optString("path","");
-            if(!path.isEmpty()&&(url.startsWith("https://")||
-                url.startsWith("http://")))thumbUrls.put(path,url);
+            String cloudPath=item.optString("path","");
+            if(!cloudPath.isEmpty()&&(url.startsWith("https://")||
+                url.startsWith("http://")))thumbUrls.put(cloudPath,url);
         }
         return rows;
     }
