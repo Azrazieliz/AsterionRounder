@@ -513,10 +513,13 @@ function archive(){
        const ext=entry.name.split('.').pop().toLowerCase();
        const im=E('img','fg-archive-img');im.alt=entry.name;
        im.loading='lazy';
+       let watchdog=0;
        im.addEventListener('load',()=>{
+         clearTimeout(watchdog);
          if(isComic)bridge()?.readerDiagnostic?.('COMIC_IMAGE_LOADED');
        });
        im.addEventListener('error',()=>{
+         clearTimeout(watchdog);
          const current=im.currentSrc||im.src;
          if(!im.dataset.sampleAttempted &&
             current.includes('https://fg-assets.invalid/book/')){
@@ -538,6 +541,13 @@ function archive(){
        im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
          'data:image/'+(ext==='jpg'?'jpeg':ext)+';base64,'+data;
        dest.appendChild(im);
+       watchdog=setTimeout(()=>{
+         if(im.isConnected && !(im.complete&&im.naturalWidth>0) &&
+            !im.dataset.sampleAttempted){
+           im.dispatchEvent(new Event('error'));
+           bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_TIMEOUT_NATIVE_FALLBACK');
+         }
+       },8500);
      }else{
        dest.appendChild(E('pre','fg-document-code',
          new TextDecoder().decode(decode(data))));

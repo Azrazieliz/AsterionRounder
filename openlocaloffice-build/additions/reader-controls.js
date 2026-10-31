@@ -261,12 +261,28 @@ function renderImageFolder(data){
      section.dataset.page=String(i+1);
      const image=el('img','fg-folder-image');
      image.alt=page.name||'Image '+(i+1);
+     let watchdog=0;
+     const clearWatchdog=()=>{if(watchdog)clearTimeout(watchdog);watchdog=0;};
+     const armWatchdog=()=>{
+       clearWatchdog();
+       if(image.dataset.fallbackAttempted==='yes')return;
+       watchdog=setTimeout(()=>{
+         if(!image.isConnected||image.dataset.recycled==='yes'||
+            (image.complete&&image.naturalWidth>0))return;
+         // Some SAF/cloud PNG streams hang without firing an IMG error event.
+         // Use the same bounded native JPEG fallback after a deadline.
+         image.dispatchEvent(new Event('error'));
+         window.AndroidBridge?.readerDiagnostic?.('IMAGE_TIMEOUT_NATIVE_FALLBACK');
+       },7500);
+     };
      image.loading='lazy';image.decoding='async';image.dataset.src=page.url;
      image.addEventListener('load',()=>{
+       clearWatchdog();
        updateRotation(image);
        image.style.height='';image.style.visibility='';
      });
      image.addEventListener('error',()=>{
+       clearWatchdog();
        if(!section.isConnected||image.dataset.recycled==='yes')return;
        if(image.dataset.fallbackAttempted!=='yes'){
          image.dataset.fallbackAttempted='yes';
@@ -292,9 +308,9 @@ function renderImageFolder(data){
      });
      section.append(image);frag.append(section);
      if(imageObserver)imageObserver.observe(image);
-     else image.src=page.url;
+     else {image.src=page.url;armWatchdog();}
      // First images are readable while the remaining folder is scanned.
-     if(i<3)image.src=page.url;
+     if(i<3){image.src=page.url;armWatchdog();}
    }
    stack.insertBefore(frag,sentinel);
    busy=false;
@@ -367,6 +383,16 @@ function renderImageFolder(data){
            img.dataset.recycled='no';
            img.src=img.dataset.src;
          }else if(!img.getAttribute('src'))img.src=img.dataset.src;
+         if(img.getAttribute('src')&&img.dataset.fallbackAttempted!=='yes' &&
+            !img.dataset.queuedWatchdog){
+           img.dataset.queuedWatchdog='yes';
+           setTimeout(()=>{
+             img.dataset.queuedWatchdog='';
+             if(img.isConnected && img.dataset.recycled!=='yes' &&
+                !(img.complete&&img.naturalWidth>0))
+               img.dispatchEvent(new Event('error'));
+           },9000);
+         }
        }else if(img.getAttribute('src') && img.complete && img.naturalWidth>0){
          const h=Math.max(1,Math.ceil(img.getBoundingClientRect().height));
          img.dataset.recycled='yes';
