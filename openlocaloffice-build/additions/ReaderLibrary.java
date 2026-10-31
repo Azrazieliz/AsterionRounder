@@ -43,11 +43,9 @@ public final class ReaderLibrary {
             DocumentsContract.Document.COLUMN_MIME_TYPE,
             DocumentsContract.Document.COLUMN_SIZE,
             DocumentsContract.Document.COLUMN_LAST_MODIFIED};
-        // RoundSync's DocumentsProvider returns an empty ExtrasMatrixCursor
-        // with EXTRA_LOADING or EXTRA_ERROR when its rclone request times
-        // out. It is not evidence that an image directory is empty.
+        // A storage provider can return an empty, still-loading cursor.
+        // Never turn a temporary loading/error response into a final empty folder.
         Cursor cursor=null;
-        boolean isRoundSync="de.felixnuesse.extract.vcp".equals(tree.getAuthority());
         String providerError=null;
         boolean providerLoading=false;
         final long started=android.os.SystemClock.elapsedRealtime();
@@ -70,9 +68,9 @@ public final class ReaderLibrary {
                     (providerLoading?"loading":"not-loading")+" elapsed_ms="+
                     (android.os.SystemClock.elapsedRealtime()-started)+
                     " authority="+tree.getAuthority()+" providerMessage="+hint);
-                if(isRoundSync && (providerLoading||providerError!=null)){
+                if(providerLoading||providerError!=null){
                     throw new PendingDirectoryException(providerLoading,
-                        "RoundSync is still loading or could not list this cloud folder: "+hint);
+                        "Storage provider has not finished listing this folder: "+hint);
                 }
                 sink.accept(id,new JSONArray(),true);
                 return new Listing(id,new JSONArray());
