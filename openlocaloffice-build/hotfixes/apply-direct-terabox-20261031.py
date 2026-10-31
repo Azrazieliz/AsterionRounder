@@ -31,11 +31,14 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
     private final java.util.concurrent.atomic.AtomicInteger fgTbNextIndex=
         new java.util.concurrent.atomic.AtomicInteger();
     private volatile String fgTbSelectedPath=null;
+    private final java.util.concurrent.ConcurrentHashMap<String,String> fgTbCoverIds=
+        new java.util.concurrent.ConcurrentHashMap<>();
 
     private void listTeraboxNative(String folder){
         final String requested=folder==null?"":folder;
         if(!requested.isEmpty()&&!requested.startsWith("/"))return;
         final long version=fgTbVersion.incrementAndGet();
+        fgTbCoverIds.clear();
         fgDirectoryExecutor.execute(()->{
             final long start=android.os.SystemClock.elapsedRealtime();
             try{
@@ -48,8 +51,19 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
                     for(int i=0;i<cloud.length();i++){
                         org.json.JSONObject row=cloud.optJSONObject(i);
                         if(row==null)continue;
-                        try{batch.put(com.openlocal.office.core.FgTeraboxClient.mapEntry(row));}
-                        catch(Exception ignored){android.util.Log.w("FG_TERA","Skipping malformed cloud item");}
+                        try{
+                            org.json.JSONObject mapped=
+                                com.openlocal.office.core.FgTeraboxClient.mapEntry(row);
+                            String path=mapped.optString("path","");
+                            if(!mapped.optBoolean("folder")&&
+                               com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))){
+                                String id=java.util.UUID.randomUUID().toString();
+                                fgTbCoverIds.put(id,path);
+                                mapped.put("cover","https://fg-assets.invalid/tb-cover/"+id);
+                                mapped.put("remoteCover",true);
+                            }
+                            batch.put(mapped);
+                        }catch(Exception ignored){android.util.Log.w("FG_TERA","Skipping malformed cloud item");}
                     }
                     total+=batch.length();
                     final boolean done=cloud.length()<com.openlocal.office.core.FgTeraboxClient.pageSize();
@@ -155,6 +169,19 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
             android.util.Log.w("FG_TERA","Invalid image chunk");
         }
     }
+    private WebResourceResponse fgTbCover(Uri source){
+        String id=source.getPath().substring("/tb-cover/".length());
+        String path=fgTbCoverIds.get(id);
+        if(path==null)return new WebResourceResponse("image/jpeg",null,
+            new ByteArrayInputStream(new byte[0]));
+        try{return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));}
+        catch(Exception problem){
+            android.util.Log.w("FG_TERA","Thumbnail error: "+
+                problem.getClass().getSimpleName());
+            return new WebResourceResponse("image/jpeg",null,
+                new ByteArrayInputStream(new byte[0]));
+        }
+    }
     private WebResourceResponse fgTbImage(Uri source){
         String[] parts=source.getPath().split("/");
         if(parts.length!=4||!parts[2].equals(fgTbToken))
@@ -202,7 +229,9 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
 s=s.replace(anchor,impl+anchor,1)
 anchor='                    if(assetPath!=null&&assetPath.startsWith("/folder-img/")){'
 assert s.count(anchor)==1
-s=s.replace(anchor,'''                    if(assetPath!=null&&assetPath.startsWith("/terabox-image/"))
+s=s.replace(anchor,'''                    if(assetPath!=null&&assetPath.startsWith("/tb-cover/"))
+                        return fgTbCover(u);
+                    if(assetPath!=null&&assetPath.startsWith("/terabox-image/"))
                         return fgTbImage(u);
 '''+anchor,1)
 anchor='        if(requestCode==REQ_FG_CONVERT){'
