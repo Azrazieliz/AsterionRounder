@@ -300,7 +300,12 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
                                 if (block == null || position < blockOffset ||
                                     position >= blockOffset + block.length) {
                                     blockOffset = position;
-                                    int fetch = (int)Math.min(512 * 1024L, fileSize - position);
+                                    // Larger image entries in ZIP64 may need many sequential
+                                    // byte ranges. Cache a bounded 2 MiB cloud block
+                                    // in memory only; do not write page data to disk.
+                                    long blockSize=cloudPath.toLowerCase(java.util.Locale.ROOT)
+                                        .matches(".*\\.(zip|cbz|epub)$")?2L*1024*1024:512L*1024;
+                                    int fetch = (int)Math.min(blockSize, fileSize - position);
                                     block = client.readRange(cloudPath, position, fetch);
                                     if (block.length == 0) throw new IOException("Unexpected end of cloud file");
                                 }

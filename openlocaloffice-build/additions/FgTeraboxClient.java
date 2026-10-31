@@ -209,7 +209,7 @@ public final class FgTeraboxClient {
      * DocumentsProvider for PDF, ZIP64, video and image decoders.
      */
     public byte[] readRange(String path,long offset,int requested) throws Exception{
-        if(offset<0||requested<1||requested>1024*1024)
+        if(offset<0||requested<1||requested>2*1024*1024)
             throw new IllegalArgumentException("Invalid byte range");
         String safe=safePath(path);
         for(int attempt=0;attempt<2;attempt++){
