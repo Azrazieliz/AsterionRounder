@@ -42,40 +42,65 @@ namespace FileGestioner.NativeRemote
                 if(File.Exists(errorPath))File.Delete(errorPath);
 
                 Camera[] cameras=Camera.allCameras;
-                Camera camera=Camera.main;
-                if(camera==null||!camera.enabled||camera.cullingMask==0){
-                    camera=null;
-                    foreach(Camera candidate in cameras){
-                        if(candidate==null||!candidate.enabled||candidate.cullingMask==0)continue;
-                        if(camera==null||candidate.depth>camera.depth)camera=candidate;
-                    }
-                }
-                if(camera==null)throw new Exception("No active 3D camera");
-                RenderTexture texture=new RenderTexture(width,height,24,RenderTextureFormat.ARGB32);
-                RenderTexture former=camera.targetTexture;
+                if(cameras.Length==0)throw new Exception("No Unity camera is available");
                 RenderTexture before=RenderTexture.active;
                 Texture2D capture=null;
+                RenderTexture texture=new RenderTexture(width,height,24,RenderTextureFormat.ARGB32);
+                string diagnostics="";
+                int bestScore=-1;
+                byte[] best=null;
+                string bestCamera="";
                 try {
                     texture.Create();
-                    camera.targetTexture=texture;
-                    camera.Render();
-                    RenderTexture.active=texture;
                     capture=new Texture2D(width,height,TextureFormat.RGB24,false);
-                    capture.ReadPixels(new Rect(0,0,width,height),0,0);
-                    capture.Apply(false);
-                    byte[] bytes=capture.EncodeToPNG();
-                    if(bytes==null||bytes.Length<200)
-                        throw new Exception("Unity camera rendered no pixels");
-                    File.WriteAllBytes(framePath,bytes);
-                    Logger.LogInfo("Native offscreen frame: "+bytes.Length+
-                        " bytes, camera="+camera.name+
-                        " cameras="+cameras.Length);
-                } finally {
-                    camera.targetTexture=former;
+                    foreach(Camera candidate in cameras){
+                        if(candidate==null||!candidate.enabled||candidate.cullingMask==0)continue;
+                        RenderTexture former=candidate.targetTexture;
+                        try {
+                            candidate.targetTexture=texture;
+                            candidate.Render();
+                            RenderTexture.active=texture;
+                            capture.ReadPixels(new Rect(0,0,width,height),0,0);
+                            capture.Apply(false);
+                            Color32[] pixels=capture.GetPixels32();
+                            int score=0;int nonBlack=0;
+                            Color32 prev=pixels[0];
+                            int step=Math.Max(1,pixels.Length/4096);
+                            for(int i=step;i<pixels.Length;i+=step){
+                                Color32 p=pixels[i];
+                                if(p.r+p.g+p.b>48)nonBlack++;
+                                if(Math.Abs((int)p.r-prev.r)+Math.Abs((int)p.g-prev.g)+
+                                    Math.Abs((int)p.b-prev.b)>45)score++;
+                                prev=p;
+                            }
+                            diagnostics+=candidate.name+"(depth="+candidate.depth+
+                                ",mask="+candidate.cullingMask+",detail="+score+
+                                ",lit="+nonBlack+"); ";
+                            if(score>bestScore){
+                                byte[] bytes=capture.EncodeToPNG();
+                                if(bytes!=null&&bytes.Length>200){
+                                    best=bytes;bestScore=score;bestCamera=candidate.name;
+                                }
+                            }
+                        }catch(Exception error){
+                            diagnostics+=candidate.name+": "+error.Message+"; ";
+                        }finally{
+                            candidate.targetTexture=former;
+                            RenderTexture.active=before;
+                        }
+                    }
+                    // A uniform black frame is not a rendered character.
+                    // Reject it rather than falsely showing the user success.
+                    if(best==null||bestScore<5)
+                        throw new Exception("No camera rendered a 3D scene: "+diagnostics);
+                    File.WriteAllBytes(framePath,best);
+                    Logger.LogInfo("Native offscreen frame: "+best.Length+
+                        " bytes, camera="+bestCamera+", detail="+bestScore+
+                        ", cameras="+cameras.Length+"; "+diagnostics);
+                }finally{
                     RenderTexture.active=before;
                     if(capture!=null)UnityEngine.Object.Destroy(capture);
-                    texture.Release();
-                    UnityEngine.Object.Destroy(texture);
+                    texture.Release();UnityEngine.Object.Destroy(texture);
                 }
             } catch(Exception exc) {
                 File.WriteAllText(errorPath,exc.ToString());
