@@ -73,6 +73,11 @@ public final class FgMediaPlayer implements AutoCloseable {
         display.setUseController(true);
         if(video){
             display.setControllerShowTimeoutMs(2600);
+            // Media3's built-in skip/seek neighbours collide visually with
+            // Rounder's own previous/next-folder-video controls.
+            // Keep exactly one playlist pair, plus Media3's central play/pause.
+            display.setShowPreviousButton(false);
+            display.setShowNextButton(false);
             display.setShowRewindButton(false);
             display.setShowFastForwardButton(false);
         }
@@ -81,6 +86,20 @@ public final class FgMediaPlayer implements AutoCloseable {
         root.addView(display,videoLayout);
         player=new ExoPlayer.Builder(activity).build();
         display.setPlayer(player);
+        if(video){
+            // Some Media3 Controller layouts retain the legacy seek buttons
+            // even when PlayerView flags are false. Hide only the competing
+            // symbols, not the seek bar or playback/pause control.
+            for(int id:new int[]{
+                androidx.media3.ui.R.id.exo_prev,
+                androidx.media3.ui.R.id.exo_next,
+                androidx.media3.ui.R.id.exo_rew,
+                androidx.media3.ui.R.id.exo_ffwd
+            }){
+                View duplicate=display.findViewById(id);
+                if(duplicate!=null)duplicate.setVisibility(View.GONE);
+            }
+        }
         TextView title=new TextView(activity);
         title.setText((video?"Video Â· ":"Audio Â· ")+filename);
         title.setTextColor(0xffffffff);
