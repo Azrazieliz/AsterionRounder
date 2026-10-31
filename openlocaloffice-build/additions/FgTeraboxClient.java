@@ -379,7 +379,7 @@ public final class FgTeraboxClient {
         }catch(Exception ex){return Integer.toHexString(value.hashCode());}
     }
     private File coverDir() throws IOException{
-        File dir=new File(app.getCacheDir(),"terabox-thumbnails-v3");
+        File dir=new File(app.getFilesDir(),"terabox-thumbnails-v4");
         if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Private thumbnail cache unavailable");
         return dir;
     }

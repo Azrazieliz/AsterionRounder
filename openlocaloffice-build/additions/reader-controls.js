@@ -382,11 +382,7 @@ function renderImageFolder(data){
            },30000);
          }
        }else if(img.getAttribute('src') && img.complete && img.naturalWidth>0){
-         const h=Math.max(1,Math.ceil(img.getBoundingClientRect().height));
-         img.dataset.recycled='yes';
-         img.style.height=h+'px';
-         img.style.visibility='hidden';
-         img.removeAttribute('src');
+         // Keep already rendered pixels; no automatic fetch on reverse scroll.
        }
      }
    },{root:view,rootMargin:'70% 0px',threshold:0});
@@ -413,7 +409,7 @@ function renderImageFolder(data){
    setPosition(current);
  }
  window.FileGestionerFolder={
-   append:payload=>add(payload?.pages),
+   append:payload=>add(Array.isArray(payload)?payload:payload?.pages),
    done:total=>{finished=true;
      sentinel.textContent=index<pages.length?'Continue reading…':'End of collection';
      setPosition(current);},

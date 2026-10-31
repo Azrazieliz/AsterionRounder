@@ -65,6 +65,8 @@ let cloudMode=false;
 let activeVersion=null,scanning=false,pageStart=0,renderTimer=0,lastRender=0;
 let imagePumpVersion=0,imagePumpState=null,listingRequest='',operationDialog=null,pendingFolderImageRead=null;
 let sortBy='name',sortDescending=false;
+const retainedCards=new Map();
+let lastVisibleKeys='';
 const PAGE=96;
 function classify(entry){
  if(entry.folder)return 'folder';
@@ -144,7 +146,7 @@ function openBook(item){
 const queuedCovers=new WeakSet();
 const coverJobs=[];
 let activeCoverJobs=0;
-const MAX_CLOUD_COVERS=2;
+const MAX_CLOUD_COVERS=6;
 function pumpCovers(){
  while(activeCoverJobs<MAX_CLOUD_COVERS&&coverJobs.length){
    const job=coverJobs.shift();
@@ -434,10 +436,26 @@ function render(){
  });
  const max=Math.max(0,shown.length-1);
  pageStart=Math.min(pageStart,Math.floor(max/PAGE)*PAGE);
- const fragment=document.createDocumentFragment();
- shown.slice(pageStart,pageStart+PAGE).forEach((entry,i)=>
-   fragment.appendChild(card(entry,pageStart+i)));
- deck.appendChild(fragment);
+ const visiblePage=shown.slice(pageStart,pageStart+PAGE);
+ const nextKeys=visiblePage.map(entry=>
+   (entry.path||entry.uri||entry.id||entry.name)+'|'+(entry.modified||0)+'|'+(entry.size||0));
+ const signature=nextKeys.join('\n')+'|'+list;
+ if(signature!==lastVisibleKeys){
+   const fragment=document.createDocumentFragment();
+   visiblePage.forEach((entry,i)=>{
+     const key=nextKeys[i]+'|'+list;
+     let cached=retainedCards.get(key);
+     if(!cached){cached=card(entry,pageStart+i);retainedCards.set(key,cached);}
+     fragment.appendChild(cached);
+   });
+   deck.replaceChildren(fragment);
+   lastVisibleKeys=signature;
+   if(retainedCards.size>PAGE*4){
+     const keep=new Set(nextKeys.map(key=>key+'|'+list));
+     for(const key of retainedCards.keys())
+       if(!keep.has(key))retainedCards.delete(key);
+   }
+ }
  const pages=Math.ceil(shown.length/PAGE);
  const current=Math.floor(pageStart/PAGE)+1;
  if(pages>1){
@@ -490,6 +508,7 @@ function request(){
  if(cloudMode && !bridge()?.getTeraboxConfigured?.()){showTeraboxSettings();return;}
  if(!cloudMode && !bridge()?.getLibraryRoot?.()){showEmpty();return;}
  activeVersion=null;scanning=true;pageStart=0;entries=[];loaded=false;
+ retainedCards.clear();lastVisibleKeys='';
  listingRequest=currentFolder||'';lastRender=0;
  if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
  loading.textContent='Loading your collection…';
@@ -625,9 +644,9 @@ function append(payload){
  scanning=!payload.finished;loaded=true;
  const state=imagePumpState;
  if(state && state.live && state.folder===payload.folder){
-   const known=new Set(state.siblings.map(e=>e.uri));
-   for(const entry of fresh)if(!known.has(entry.uri)){
-     known.add(entry.uri);state.siblings.push(entry);
+   const known=new Set(state.siblings.map(e=>e.path||e.uri));
+   for(const entry of fresh)if(!known.has(entry.path||entry.uri)){
+     known.add(entry.path||entry.uri);state.siblings.push(entry);
    }
    if(payload.finished)state.live=false;
    if(state.paused&&state.feed){state.paused=false;state.feed();}
@@ -732,9 +751,9 @@ window.FileGestionerLibrary={
        if(state.live && scanning){state.paused=true;return;}
        bridge()?.finishImageCollection?.();imagePumpState=null;return;
      }
-     const batch=state.siblings.slice(state.offset,state.offset+64)
+     const batch=state.siblings.slice(state.offset,state.offset+96)
        .map(x=>state.terabox?{path:x.path,name:x.name}:{uri:x.uri,name:x.name});
-     state.offset+=64;
+     state.offset+=96;
      if(state.terabox)bridge()?.appendTeraboxImageCollectionChunk?.(JSON.stringify(batch));
      else bridge()?.appendImageCollectionChunk?.(JSON.stringify(batch));
      setTimeout(feed,0);

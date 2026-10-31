@@ -32,13 +32,13 @@ public final class ReaderCovers {
     }
     public static boolean hasCached(Context ctx,Uri uri,long size,long modified){
         if(uri==null)return false;
-        File file=new File(new File(ctx.getCacheDir(),"covers-v2"),
+        File file=new File(new File(ctx.getFilesDir(),"covers-v3"),
             hash(uri.toString()+"|"+size+"|"+modified)+".jpg");
         return file.isFile()&&file.length()>0;
     }
     public static InputStream open(Context ctx,Uri source,String name,
                                    long size,long lastModified) throws IOException {
-        File dir=new File(ctx.getCacheDir(),"covers-v2");
+        File dir=new File(ctx.getFilesDir(),"covers-v3");
         if(!dir.exists()&&!dir.mkdirs())throw new IOException("Cover cache unavailable");
         String key=hash(source.toString()+"|"+size+"|"+lastModified);
         File cached=new File(dir,key+".jpg");
