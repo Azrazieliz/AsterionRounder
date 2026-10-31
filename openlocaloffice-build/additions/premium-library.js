@@ -68,6 +68,9 @@ let sortBy='name',sortDescending=false;
 const retainedCards=new Map();
 let lastVisibleKeys='';
 const PAGE=96;
+const naturalCollator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
+let catalogRevision=0,indexedRevision=-1,indexedKey='',indexedEntries=[];
+let collectionCacheKey='';
 function classify(entry){
  if(entry.folder)return 'folder';
  const x=entry.name.toLowerCase();
@@ -113,10 +116,10 @@ function openBook(item){
  if(cloudMode && item.terabox && classify(item)==='image' &&
      bridge()?.beginTeraboxImageCollection){
    const siblings=entries.filter(x=>!x.folder&&x.terabox&&classify(x)==='image')
-     .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name));
    const version=++imagePumpVersion;
-   imagePumpState={version,siblings,offset:0,started:false,live:scanning,
-     folder:currentFolder,paused:false,feed:null,terabox:true};
+   imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
+     offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null,terabox:true};
    bridge().beginTeraboxImageCollection(item.path,item.name);
  }else if(cloudMode && item.terabox){
    visible=true;root.classList.remove('fg-lib-hidden');
@@ -125,9 +128,10 @@ function openBook(item){
    // The library already has the siblings' SAF URIs. Reusing them avoids
    // a second expensive Round Sync directory query (or a failed cloud scan).
    const siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
-     .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name));
    const version=++imagePumpVersion;
-   imagePumpState={version,siblings,offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
+   imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
+     offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
    // Native loads the viewer first. It notifies us after installing the
    // image-reader callback, so no early Round Sync batch can be lost.
    bridge().beginImageCollection(item.uri);
@@ -420,7 +424,11 @@ function render(){
  deck.replaceChildren();empty.replaceChildren();
  root.querySelectorAll('.fg-lib-pager').forEach(n=>n.remove());
  const needle=phrase.trim().toLocaleLowerCase();
- const shown=entries.filter(e=>{
+ const key=[filter,needle,sortBy,sortDescending?'desc':'asc'].join('\u0001');
+ let shown;
+ if(indexedRevision===catalogRevision&&indexedKey===key){
+   shown=indexedEntries;
+ }else shown=entries.filter(e=>{
    const c=classify(e);
    return (filter==='all'||c===filter||c==='folder')&&
      (!needle||e.title.toLocaleLowerCase().includes(needle));
@@ -430,10 +438,13 @@ function render(){
    if(sortBy==='size')difference=(a.size||0)-(b.size||0);
    else if(sortBy==='modified')difference=(a.modified||0)-(b.modified||0);
    else if(sortBy==='type')difference=classify(a).localeCompare(classify(b));
-   else difference=a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'});
+   else difference=naturalCollator.compare(a.name,b.name);
    return (sortDescending?-1:1)*(difference||
-      a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+      naturalCollator.compare(a.name,b.name));
  });
+ if(indexedRevision!==catalogRevision||indexedKey!==key){
+   indexedEntries=shown;indexedRevision=catalogRevision;indexedKey=key;
+ }
  const max=Math.max(0,shown.length-1);
  pageStart=Math.min(pageStart,Math.floor(max/PAGE)*PAGE);
  const visiblePage=shown.slice(pageStart,pageStart+PAGE);
@@ -511,12 +522,19 @@ function createFilters(){
 function request(){
  if(cloudMode && !bridge()?.getTeraboxConfigured?.()){showTeraboxSettings();return;}
  if(!cloudMode && !bridge()?.getLibraryRoot?.()){showEmpty();return;}
+ const nextCollectionKey=(cloudMode?'cloud:':'saf:')+(currentFolder||'/');
+ const sameCollection=collectionCacheKey===nextCollectionKey;
+ collectionCacheKey=nextCollectionKey;
  activeVersion=null;scanning=true;pageStart=0;entries=[];loaded=false;
- retainedCards.clear();lastVisibleKeys='';
+ catalogRevision++;indexedRevision=-1;indexedEntries=[];
+ // Reuse existing IMG nodes when revisiting this folder; unchanged covers
+ // must not blink or be downloaded again during metadata refresh.
+ if(!sameCollection){retainedCards.clear();lastVisibleKeys='';deck.replaceChildren();}
  listingRequest=currentFolder||'';lastRender=0;
  if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
  loading.textContent='Loading your collection…';
- loading.classList.remove('fg-lib-hidden');deck.classList.add('fg-lib-hidden');
+ loading.classList.toggle('fg-lib-hidden',sameCollection&&!!lastVisibleKeys);
+ deck.classList.toggle('fg-lib-hidden',!sameCollection||!lastVisibleKeys);
  empty.classList.add('fg-lib-hidden');
  if(cloudMode)bridge()?.listTerabox?.(currentFolder||'');
  else bridge()?.listLibrary?.(currentFolder);
@@ -594,7 +612,7 @@ function enterFolder(id){
 function openSibling(direction){
  const sorted=entries.filter(e=>!e.folder&&
    /\.(epub|pdf|zip|cbz|cbr|jpe?g|png|webp|gif|avif)$/i.test(e.name||''))
-   .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+   .sort((a,b)=>naturalCollator.compare(a.name,b.name));
  const i=sorted.findIndex(e=>e.uri===activeUri);
  if(i<0||!sorted.length)return false;
  const next=sorted[i+Math.sign(direction)];
@@ -645,12 +663,14 @@ function append(payload){
  if(payload.version!==activeVersion||payload.folder!==currentFolder)return;
  const fresh=payload.items.filter(e=>!e.folder&&classify(e)==='image');
  entries.push(...payload.items);
+ catalogRevision++;
  scanning=!payload.finished;loaded=true;
  const state=imagePumpState;
  if(state && state.live && state.folder===payload.folder){
-   const known=new Set(state.siblings.map(e=>e.path||e.uri));
-   for(const entry of fresh)if(!known.has(entry.path||entry.uri)){
-     known.add(entry.path||entry.uri);state.siblings.push(entry);
+   for(const entry of fresh){
+     const key=entry.path||entry.uri;
+     if(state.known.has(key))continue;
+     state.known.add(key);state.siblings.push(entry);
    }
    if(payload.finished)state.live=false;
    if(state.paused&&state.feed){state.paused=false;state.feed();}
@@ -658,7 +678,7 @@ function append(payload){
  if(pendingFolderImageRead===payload.folder&&fresh.length){
    pendingFolderImageRead=null;
    const first=entries.filter(e=>!e.folder&&classify(e)==='image')
-     .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}))[0];
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name))[0];
    if(first)openBook(first);
  }
  if(payload.finished&&pendingFolderImageRead===payload.folder)pendingFolderImageRead=null;
@@ -707,6 +727,7 @@ function append(payload){
 function receive(payload){
  loaded=true;
  entries=Array.isArray(payload.items)?payload.items:[];
+ catalogRevision++;
  currentFolder=payload.folder||currentFolder;
  loading.classList.add('fg-lib-hidden');deck.classList.remove('fg-lib-hidden');
  empty.classList.remove('fg-lib-hidden');
