@@ -175,17 +175,28 @@ class Handler(BaseHTTPRequestHandler):
         if not info:return self.reply(404,{"error":"Unknown session"})
         yaw=max(-100,min(100,float(q.get("yaw",["0.4"])[0])))
         pitch=max(-1.3,min(1.3,float(q.get("pitch",["0.2"])[0])))
-        distance=max(1.05,min(15,float(q.get("distance",["2.5"])[0])))
-        if not all(map(math.isfinite,(yaw,pitch,distance))):
+        distance=max(1.25,min(15,float(q.get("distance",["3.2"])[0])))
+        pan_x=max(-4,min(4,float(q.get("panx",["0"])[0])))
+        pan_y=max(.25,min(3.5,float(q.get("pany",["1.25"])[0])))
+        width=max(240,min(1200,int(q.get("width",["680"])[0])))
+        height=max(240,min(1920,int(q.get("height",["800"])[0])))
+        if not all(map(math.isfinite,(yaw,pitch,distance,pan_x,pan_y))):
             return self.reply(400,{"error":"Invalid camera values"})
         if info["kind"]=="koikatsu":
             if not info.get("ready"):
                 return self.reply(425,{"error":info.get("error") or "Koikatsu character is loading"})
             if not studio_ready():return self.reply(503,{"error":"CharaStudio native plugin disconnected"})
-            # Camera controls and screenshot are handled inside Unity, no GLB.
+            # Orbit ONLY the PC camera around a stationary character.
+            # In Unity, yaw+180 turns the camera back toward the orbit target.
+            # The vertical camera position and positive X tilt aim at pan_y.
+            horizontal=distance*math.cos(pitch)
+            camera_position=[
+                pan_x+math.sin(yaw)*horizontal,
+                pan_y+distance*math.sin(pitch),
+                math.cos(yaw)*horizontal]
+            camera_rotation=[math.degrees(pitch),180+math.degrees(yaw),0]
             studio_ws({"type":"camera","command":"setview",
-                "pos":[float(math.sin(yaw)*distance),1.25+pitch,float(math.cos(yaw)*distance)],
-                "rot":[float(-pitch*45),float(yaw*180/math.pi),0],"fov":35})
+                "pos":camera_position,"rot":camera_rotation,"fov":36})
             # Offscreen capture works without exposing Studio's desktop.
             # A hidden Studio window cannot reliably serve Unity screenshots.
             with RENDER_LOCK:
@@ -194,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
                 request=ROOT/"native-frame.request"
                 for stale in (output,errors,request):
                     if stale.exists():stale.unlink()
-                request.write_text("680,800",encoding="ascii")
+                request.write_text(f"{width},{height}",encoding="ascii")
                 deadline=time.monotonic()+35
                 while time.monotonic()<deadline:
                     if errors.exists():
