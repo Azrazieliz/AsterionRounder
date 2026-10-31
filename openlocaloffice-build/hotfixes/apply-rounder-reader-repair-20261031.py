@@ -66,7 +66,7 @@ s=s.replace(anchor,'''    private static final class RounderVideo {
     private void navigateFgVideo(int direction,boolean random){
         final java.util.List<RounderVideo> queue=fgVideoQueue;
         if(queue.size()<2||fgMediaSession==null)return;
-        String current=fgVideoKey(fgVideoCurrentUri);
+        String current=fgVideoKey(fgMediaCurrentUri);
         int at=-1;
         for(int i=0;i<queue.size();i++)
             if(queue.get(i).key.equals(current)){at=i;break;}
