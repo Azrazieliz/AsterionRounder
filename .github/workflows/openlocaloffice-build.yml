@@ -162,7 +162,7 @@ jobs:
           grep -Fq 'requestBookChapter' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'responseSampled' app/src/main/java/com/openlocal/office/core/BookArchive.java
           grep -Fq 'liveLink' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
-          grep -Fq 'FG_TERA' app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java
+          grep -Fq 'public final class FgTeraboxMediaDataSource' app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java
           node --check app/src/main/assets/universal-reader.js
           node --check app/src/main/assets/epub-reader.js
           node --check app/src/main/assets/reader-controls.js
