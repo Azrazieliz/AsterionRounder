@@ -1,4 +1,4 @@
-name: Build File Gestioner APK
+﻿name: Build File Gestioner APK
 
 on:
   push:
@@ -175,7 +175,7 @@ jobs:
           test -s app/src/main/assets/model-viewer.bundle.js
           node --check app/src/main/assets/model-viewer.bundle.js
           grep -Fq 'window.FileGestionerModelViewer=' app/src/main/assets/model-viewer.entry.js
-          grep -Fq 'NoWorld · Source-linked asset preview' app/src/main/assets/model-viewer.entry.js
+          grep -Fq 'NoWorld Â· Source-linked asset preview' app/src/main/assets/model-viewer.entry.js
           grep -Fq 'requiresConversion' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'noworld_asset' app/src/main/assets/model-viewer.bundle.js
 
@@ -212,7 +212,7 @@ jobs:
           grep -Fq 'shouldInterceptRequest' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'unified-viewer-controls.js' app/src/main/assets/index.html
           grep -Fq 'File Gestioner 0.11' app/src/main/assets/style.css
-          grep -Fq "actions.append(q('−'" app/src/main/assets/model-viewer.entry.js
+          grep -Fq "actions.append(q('âˆ’'" app/src/main/assets/model-viewer.entry.js
           grep -Fq 'fg-pdf-reading' app/src/main/assets/universal-reader.js
           grep -Fq 'File Gestioner 0.10.3' app/src/main/assets/style.css
           grep -Fq 'Math.min(2400,targetWidth)' app/src/main/java/com/openlocal/office/core/UniversalReader.java
@@ -255,7 +255,7 @@ jobs:
           assert 'EXTRA_MIME_TYPES' not in body
           PY
           grep -q 'Search the whole document' app/src/main/assets/index.html
-          grep -Fq 'File Gestioner' app/src/main/assets/index.html
+          grep -Fq 'Asterion Files' app/src/main/assets/index.html
           grep -Fq 'File Gestioner pro UI polish' app/src/main/assets/style.css
           grep -Fq 'OpenLocalOffice mobile spreadsheet UI hotfix' app/src/main/assets/style.css
           grep -Fq 'android:icon="@mipmap/ic_launcher"' app/src/main/AndroidManifest.xml
@@ -298,7 +298,7 @@ jobs:
           grep -Fq "$('textFormat').classList.add('hidden')" app/src/main/assets/app.js
           grep -Fq '.sdocxEditor{' app/src/main/assets/style.css
           ! grep -q 'SDOCX preview is read-only' app/src/main/java/com/openlocal/office/MainActivity.java
-          ! grep -q 'Page →' app/src/main/assets/app.js
+          ! grep -q 'Page â†’' app/src/main/assets/app.js
 
       - name: Export assembled source for implementation audit
         uses: actions/upload-artifact@v4
@@ -411,7 +411,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Android 16 runtime validation — EPUB, archive, navigation
+      - name: Android 16 runtime validation â€” EPUB, archive, navigation
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
@@ -429,3 +429,4 @@ jobs:
           path: screenshots/
           if-no-files-found: warn
           retention-days: 7
+
