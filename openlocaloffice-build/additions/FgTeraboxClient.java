@@ -17,7 +17,7 @@ import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 
 /**
- * Native TeraBox cloud access, independent of RoundSync and PC connectivity.
+ * Native TeraBox cloud access, independent of PC connectivity.
  * Portable client intended for reuse by AsterionCore. The supplied ndus
  * session cookie is encrypted using Android Keystore, never sent to logs, JS,
  * third-party providers or file URLs. First-page responses are independent of
