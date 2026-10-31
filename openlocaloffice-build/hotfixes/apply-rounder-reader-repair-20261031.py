@@ -247,6 +247,10 @@ js.write_text(t)
 style=root/'assets/style.css'
 st=style.read_text(encoding='utf-8')
 st += """
+/* Dedicated image view has no document-wide text search bar. */
+body.fg-image-reader-active .searchbar,
+body.fg-image-reader-active #searchInput,
+body.fg-image-reader-active #searchResults{display:none!important}
 /* Asterion Rounder - measured Android 17 EPUB header inset */
 .fg-book:not(.fg-book-chrome-hidden) .fg-book-top:not(.fg-book-chrome-hidden){
   padding-top:max(34px, env(safe-area-inset-top, 0px))!important;

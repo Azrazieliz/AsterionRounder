@@ -190,7 +190,7 @@ function renderImageFolder(data){
  const modeButton=btn('Pages','Switch to page-by-page images',()=>switchMode());
  const position=el('span','fg-image-position','0 / …');
  const collapse=btn('⌄','Toggle image controls',()=>bar.classList.toggle('fg-image-toolbar-small'));
- let pending3dOpen=false;
+ let pending3dOpen=false,auto3dOpened=false;
  const koikatsu=btn('Check 3D','Verify whether this PNG contains a real Koikatsu character',
    ()=>{
      if(koikatsu.dataset.verified==='true'){
@@ -202,15 +202,14 @@ function renderImageFolder(data){
      }
    });
  koikatsu.classList.add('fg-image-koikatsu','fg-koikatsu-float');
- const cardCandidate=pages.some(p=>/\.png$/i.test(p?.name||''));
- koikatsu.hidden=!cardCandidate;
+ koikatsu.hidden=data.koikatsuCard!==true;
  koikatsu.dataset.verified=data.koikatsuCard===true?'true':'false';
  if(data.koikatsuCard===true)koikatsu.textContent='Open 3D';
  bar.append(close,previous,position,next,modeButton,collapse);
  host.append(view,bar,koikatsu);editor.replaceChildren(host);
  for(const id of ['sheetBar','spreadsheetTools','textFormat','notice'])
    by('#'+id)?.classList.add('hidden');
- let imageObserver=null,batchObserver=null,index=0,current=0,finished=false,busy=false;
+ let imageObserver=null,batchObserver=null,index=0,current=0,finished=Boolean(data.standalone),busy=false;
  function closeCollection(){
    // ACTION_VIEW from Files/RoundSync should return to that app instead
    // of showing an empty File Gestioner library.
@@ -237,10 +236,10 @@ function renderImageFolder(data){
    const prior=current;
    current=Math.max(0,Math.min(Math.max(0,pages.length-1),i));
    if(current!==prior){
-     pending3dOpen=false;
+     pending3dOpen=false;auto3dOpened=false;
      koikatsu.dataset.verified='false';
      koikatsu.textContent='Check 3D';
-     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'');
+     koikatsu.hidden=true;
      window.AndroidBridge?.selectImageCollectionPage?.(current);
    }
    position.textContent=pages.length?(current+1)+' / '+pages.length+(finished?'':'+'):'0 / …';
@@ -437,10 +436,20 @@ function renderImageFolder(data){
    select:i=>{selectedIndex=i;jumpTo(i);},
    koikatsuCard:valid=>{
      koikatsu.dataset.verified=valid?'true':'false';
-     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'')&&!valid;
+     koikatsu.hidden=!valid;
      koikatsu.textContent=valid?'Open 3D':'Check 3D';
      koikatsu.title=valid?'Open verified Koikatsu character remotely in 3D':
        'This PNG has not been verified as a Koikatsu card';
+     // A confirmed Koikatsu PNG is a 3D character first, not a generic image.
+     // Open the authorized remote workflow directly when paired, otherwise
+     // expose only the genuine-card button to configure remote PC access.
+     if(valid && !auto3dOpened && !pending3dOpen &&
+        window.AndroidBridge?.getRemoteEndpoint?.() &&
+        window.AndroidBridge?.getRemoteToken?.() &&
+        window.FileGestionerRemoteViewer?.open){
+       auto3dOpened=true;
+       window.FileGestionerRemoteViewer.open('koikatsu');
+     }
      if(pending3dOpen){
        pending3dOpen=false;
        if(valid)window.FileGestionerRemoteViewer?.open('koikatsu');
