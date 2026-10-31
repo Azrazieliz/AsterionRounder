@@ -78,7 +78,7 @@ public final class BookArchive implements Closeable {
             // a valid permanent source or blindly copy it again.
             if(advertised>0&&physical>=0&&physical<advertised){
                 throw new IOException("The cloud document is incomplete ("+
-                    physical+" / "+advertised+" bytes). Complete Round Sync download first.");
+                    physical+" / "+advertised+" bytes). Retry when the source is fully accessible.");
             }
             try {
                 // Read ZIP central directory directly from the SAF descriptor.
