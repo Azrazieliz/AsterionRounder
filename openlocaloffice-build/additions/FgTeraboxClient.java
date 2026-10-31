@@ -226,7 +226,8 @@ public final class FgTeraboxClient {
                 c.setRequestProperty("Accept-Encoding","identity");
                 String host=url.getHost().toLowerCase(Locale.ROOT);
                 if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
-                   host.equals("dubox.com")||host.endsWith(".dubox.com"))
+                   host.equals("dubox.com")||host.endsWith(".dubox.com")||
+                   host.equals("freeterabox.com")||host.endsWith(".freeterabox.com"))
                     c.setRequestProperty("Cookie",cookie());
                 try{
                     int status=c.getResponseCode();
@@ -277,7 +278,8 @@ public final class FgTeraboxClient {
             // NDUS is sent only to the official TeraBox/Dubox domains.
             // Manual redirects prevent leaking it to arbitrary file CDNs.
             if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
-               host.equals("dubox.com")||host.endsWith(".dubox.com")){
+               host.equals("dubox.com")||host.endsWith(".dubox.com")||
+                   host.equals("freeterabox.com")||host.endsWith(".freeterabox.com")){
                 stream.setRequestProperty("Cookie",cookie());
             }
             try{
@@ -360,7 +362,8 @@ public final class FgTeraboxClient {
             request.setRequestProperty("Referer","https://www.terabox.com/");
             String host=url.getHost().toLowerCase(Locale.ROOT);
             if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
-               host.equals("dubox.com")||host.endsWith(".dubox.com"))
+               host.equals("dubox.com")||host.endsWith(".dubox.com")||
+                   host.equals("freeterabox.com")||host.endsWith(".freeterabox.com"))
                 request.setRequestProperty("Cookie",cookie());
             try{
                 int response=request.getResponseCode();
