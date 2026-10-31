@@ -107,9 +107,13 @@ covers.write_text(v,encoding='utf-8')
 # and measured placeholder heights outside the viewport.
 reader=base/'assets/reader-controls.js'
 j=reader.read_text(encoding='utf-8')
-a="},{root:view,rootMargin:'320% 0px',threshold:0});"
-assert j.count(a)==1
-j=j.replace(a,"},{root:view,rootMargin:'100% 0px',threshold:0});",1)
+# The current reader already limits the image prefetch margin to 70%.
+# Older source used 320%; do not regress a newer, tighter margin.
+old="},{root:view,rootMargin:'320% 0px',threshold:0});"
+new="},{root:view,rootMargin:'70% 0px',threshold:0});"
+assert j.count(old)==1 or j.count(new)==1
+if j.count(old)==1:
+    j=j.replace(old,new,1)
 # Prevent listener leaks after switching readers repeatedly.
 needle=" let imageObserver=null,batchObserver=null,index=0,current=0,finished=false,busy=false;"
 if j.count(needle)!=1:
