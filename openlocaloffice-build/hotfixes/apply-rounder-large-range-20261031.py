@@ -4,7 +4,7 @@ p=Path('app/build.gradle.kts')
 if not p.exists():p=Path('app/build.gradle')
 s=p.read_text(encoding='utf-8')
 assert '0.15.0' in s
-s,n=re.subn(r'(\bversionCode\s*(?:=\s*)?)22\b',r'\g<1>29',s,count=1)
+s,n=re.subn(r'(\bversionCode\s*(?:=\s*)?)22\b',r'\g<1>30',s,count=1)
 assert n==1
-p.write_text(s.replace('0.15.0','0.15.7',1),encoding='utf-8')
-print('Asterion Rounder 0.15.7 code29: 2MB bounded cloud ZIP64 range reads')
+p.write_text(s.replace('0.15.0','0.15.8',1),encoding='utf-8')
+print('Asterion Rounder 0.15.8 code30: 2MB bounded cloud ZIP64 range reads')

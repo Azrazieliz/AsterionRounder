@@ -71,4 +71,10 @@ assert.match(nativeTerabox,/listPageCached\(requested,requestedPage\)/,
   'Cloud background jobs request metadata pages, not original image streams');
 assert.match(nativeTerabox,/listPool.shutdownNow\(\)/,
   'Leaving a folder must cancel outstanding cloud metadata workers');
+assert.match(metadataClient,/key.substring\(0,2\)/,
+  'Persistent thumbnails must be sharded for very large libraries');
+assert.match(metadataClient,/terabox-thumbnails-v3/,
+  'Existing private thumbnails must migrate without another download');
+assert.match(metadataClient,/2400\|\|total>shardBudget/,
+  'Private thumbnail cache must be bounded by storage and shard size');
 console.log('ASTERION_READER_CONTRACT_PASS');

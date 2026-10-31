@@ -442,14 +442,19 @@ public final class FgTeraboxClient {
         if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Private thumbnail cache unavailable");
         return dir;
     }
-    private void pruneCovers(File dir){
-        File[] files=dir.listFiles((d,name)->name.endsWith(".jpg"));
-        if(files==null||files.length<120)return;
+    private void pruneCovers(File shard){
+        File[] files=shard.listFiles((d,name)->name.endsWith(".jpg"));
+        if(files==null||files.length<20)return;
+        // 256 independent hash shards keep each maintenance pass bounded
+        // even for 300,000+ private thumbnails. Leave most device space free.
+        long quota=Math.min(12L*1024*1024*1024,
+            Math.max(128L*1024*1024,shard.getUsableSpace()/4));
+        long shardBudget=Math.max(512L*1024,quota/256);
         Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());
         long total=0;
         for(int i=0;i<files.length;i++){
             total+=files[i].length();
-            if(i>=900||total>120L*1024*1024)files[i].delete();
+            if(i>=2400||total>shardBudget)files[i].delete();
         }
     }
     /** Persistent, private, size-bounded thumbnails. No full image downloads. */
@@ -457,7 +462,30 @@ public final class FgTeraboxClient {
         final String safe=safePath(path);
         String scope=prefs.getString("preview_scope","v1");
         File dir=coverDir();
-        File cached=new File(dir,cacheId(scope+":"+safe)+".jpg");
+        String key=cacheId(scope+":"+safe);
+        File shard=new File(dir,key.substring(0,2));
+        if(!shard.isDirectory()&&!shard.mkdirs())
+            throw new IOException("Private thumbnail shard unavailable");
+        File cached=new File(shard,key+".jpg");
+        // Migrate older cache entries on demand. Moving a cached preview
+        // preserves its bytes without downloading an original or thumbnail.
+        if(!cached.isFile()){
+            File oldFlat=new File(dir,key+".jpg");
+            File oldV3=new File(new File(app.getCacheDir(),
+                "terabox-thumbnails-v3"),key+".jpg");
+            for(File old:new File[]{oldFlat,oldV3}){
+                if(old.isFile()&&old.length()>50){
+                    if(old.renameTo(cached))break;
+                    try(InputStream in=new FileInputStream(old);
+                        OutputStream out=new FileOutputStream(cached)){
+                        byte[] bytes=new byte[16384];int n;
+                        while((n=in.read(bytes))!=-1)out.write(bytes,0,n);
+                        old.delete();
+                    }catch(IOException error){cached.delete();}
+                    if(cached.isFile()&&cached.length()>50)break;
+                }
+            }
+        }
         if(cached.isFile()&&cached.length()>50){
             cached.setLastModified(System.currentTimeMillis());
             return new FileInputStream(cached);
@@ -497,7 +525,7 @@ public final class FgTeraboxClient {
                     continue;
                 }
                 if(response!=200&&response!=206)throw new IOException("Thumbnail HTTP "+response);
-                File tmp=new File(dir,cached.getName()+".part");
+                File tmp=new File(shard,cached.getName()+"."+java.util.UUID.randomUUID()+".part");
                 try(InputStream in=request.getInputStream();
                     FileOutputStream out=new FileOutputStream(tmp)){
                     byte[] buffer=new byte[16384];int n;long total=0;
@@ -515,7 +543,7 @@ public final class FgTeraboxClient {
                 }
                 // Enumeration+sorting on EVERY new thumbnail becomes quadratic
                 // for large libraries. Maintenance is amortized over 128 writes.
-                if((thumbnailWrites.incrementAndGet()&127)==0)pruneCovers(dir);
+                if((thumbnailWrites.incrementAndGet()&63)==0)pruneCovers(shard);
                 return new FileInputStream(cached);
             }finally{request.disconnect();}
         }
