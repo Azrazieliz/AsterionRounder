@@ -459,6 +459,16 @@ public final class FgTeraboxClient {
     }
     /** Persistent, private, size-bounded thumbnails. No full image downloads. */
     public InputStream openThumbnail(String path) throws Exception{
+        return openThumbnail(path,null,-1);
+    }
+    /**
+     * An optional metadata-page hint recovers a batch of up to 100 signed
+     * thumbnail URLs from the local page cache. This prevents a separate
+     * /api/filemetas network call for every visible thumbnail after the
+     * 1600-entry in-memory URL window has rotated out on huge collections.
+     * The original file is never downloaded on this code path.
+     */
+    public InputStream openThumbnail(String path,String folder,int page) throws Exception{
         final String safe=safePath(path);
         String scope=prefs.getString("preview_scope","v1");
         File dir=coverDir();
@@ -491,6 +501,14 @@ public final class FgTeraboxClient {
             return new FileInputStream(cached);
         }
         String thumb=thumbUrls.get(safe);
+        if((thumb==null||thumb.isEmpty())&&folder!=null&&page>0){
+            // Most pages are already on disk. Even an expired page costs
+            // one metadata request for ~100 files rather than one per image.
+            try{listPageCached(folder,page);}catch(Exception metadataError){
+                android.util.Log.d("FG_TERA","Thumbnail page refresh unavailable");
+            }
+            thumb=thumbUrls.get(safe);
+        }
         if(thumb==null||thumb.isEmpty()){
             JSONObject details=fileDetails(safe);
             JSONObject urls=details.optJSONObject("thumbs");
