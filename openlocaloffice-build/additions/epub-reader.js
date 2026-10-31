@@ -160,6 +160,7 @@ function epub(doc){
       nodes[i].replaceChildren(el('p','fg-book-error','Chapter unavailable.'),retry);
     }
     trim();
+    if(queue.size&&!workQueued){workQueued=true;requestAnimationFrame(process);}
   };
   window.FileGestionerBookReader=bookCallbacks;
   let disposed=false,obs=null,workQueued=false,scrollFrame=0,current=0,showUi=true;
@@ -177,7 +178,7 @@ function epub(doc){
     const section=el('section','fg-book-chapter');
     section.dataset.chapter=String(index);
     section.setAttribute('aria-label','Chapter '+(index+1));
-    const placeholder=el('div','fg-book-loading','');
+    const placeholder=el('div','fg-book-loading','Loading chapter…');
     section.appendChild(placeholder);nodes.push(section);return section;
   }));
   scroll.appendChild(bookContent);
@@ -265,13 +266,13 @@ function epub(doc){
     bookmark.textContent='◆';
   }
   function enqueue(i){
-    if(disposed||i<0||i>=nodes.length||loaded.has(i)||queue.has(i))return;
+    if(disposed||i<0||i>=nodes.length||loaded.has(i)||requested.has(i)||queue.has(i))return;
     queue.add(i);
     if(!workQueued){workQueued=true;requestAnimationFrame(process);}
   }
   function load(i){enqueue(i);}
   function process(){
-    workQueued=false;if(disposed||!queue.size)return;
+    workQueued=false;if(disposed||!queue.size||requested.size>=2)return;
     const i=queue.values().next().value;queue.delete(i);
     if(!loaded.has(i)&&!requested.has(i)){
       requested.add(i);
@@ -280,6 +281,7 @@ function epub(doc){
         requested.delete(i);
         nodes[i].replaceChildren(el('p','fg-book-error','Chapter request timed out.'),
           button('Retry',()=>enqueue(i)));
+        if(queue.size&&!workQueued){workQueued=true;requestAnimationFrame(process);}
       },25000);
       chapterTimeouts.set(i,fallbackTimer);
       try{bridge.requestBookChapter(i,chapterToken);}
@@ -289,7 +291,7 @@ function epub(doc){
           button('Retry',()=>enqueue(i)));
       }
     }
-    if(queue.size){workQueued=true;requestAnimationFrame(process);}
+    if(queue.size&&requested.size<2){workQueued=true;requestAnimationFrame(process);}
   }
   function trim(){
     const view=scroll.getBoundingClientRect();

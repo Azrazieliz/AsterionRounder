@@ -248,7 +248,8 @@ body.fg-image-reader-active #searchInput,
 body.fg-image-reader-active #searchResults{display:none!important}
 /* Asterion Rounder - measured Android 17 EPUB header inset */
 .fg-book:not(.fg-book-chrome-hidden) .fg-book-top:not(.fg-book-chrome-hidden){
-  padding-top:max(34px, env(safe-area-inset-top, 0px))!important;
+  padding-top:max(44px, env(safe-area-inset-top, 0px))!important;
+  max-height:none!important;min-height:88px!important;
   box-sizing:border-box!important;
 }
 .fg-book-top .fg-book-heading{min-width:0;overflow:hidden}

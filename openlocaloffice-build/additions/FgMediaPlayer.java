@@ -150,11 +150,14 @@ public final class FgMediaPlayer implements AutoCloseable {
             next.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(1,false);});
             random.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(0,true);});
             for(Button item:new Button[]{prev,next,random}){
-                item.setAllCaps(false);item.setTextSize(11);item.setMinWidth(0);
+                item.setAllCaps(false);item.setTextSize(12);item.setMinWidth(0);
+                item.setMinHeight(0);item.setMinimumHeight(0);
+                item.setPadding(2,0,2,0);
                 playlist.addView(item,new LinearLayout.LayoutParams(0,-2,1f));
             }
             FrameLayout.LayoutParams playlistPos=new FrameLayout.LayoutParams(
-                -1,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+                -1,(int)(42*activity.getResources().getDisplayMetrics().density),
+                Gravity.TOP|Gravity.CENTER_HORIZONTAL);
             root.addView(playlist,playlistPos);
             enterVideoFullscreen();
         }
@@ -173,7 +176,7 @@ public final class FgMediaPlayer implements AutoCloseable {
                     Log.i("FG_MEDIA","MEDIA_READY "+filename+
                         " duration_ms="+player.getDuration());
                 }else if(state==Player.STATE_BUFFERING)
-                    showMessage("Buffering from "+original.getAuthority()+"â€¦");
+                    showMessage("Buffering video…");
                 else if(state==Player.STATE_ENDED)showMessage("Playback finished");
             }
             @Override public void onRenderedFirstFrame(){

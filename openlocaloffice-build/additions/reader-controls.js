@@ -251,12 +251,13 @@ function renderImageFolder(data){
    if(busy||index>=pages.length)return;
    busy=true;
    const frag=document.createDocumentFragment();
-   const end=Math.min(pages.length,index+32);
+   const end=Math.min(pages.length,index+8);
    const initial=index;
    while(index<end){
      const i=index++,page=pages[i];
      if(!page?.url)continue;
      const section=el('section','fg-folder-page');
+     section.style.minHeight='80vh'; // reserve space until actual pixels arrive
      section.dataset.page=String(i+1);
      const image=el('img','fg-folder-image');
      image.alt=page.name||'Image '+(i+1);
@@ -272,11 +273,12 @@ function renderImageFolder(data){
          image.removeAttribute('src');
          image.dispatchEvent(new Event('error'));
          window.AndroidBridge?.readerDiagnostic?.('IMAGE_STREAM_TIMEOUT');
-       },7500);
+       },30000);
      };
-     image.loading='lazy';image.decoding='async';image.dataset.src=page.url;
+     image.loading='eager';image.decoding='async';image.dataset.src=page.url;
      image.addEventListener('load',()=>{
        clearWatchdog();
+       section.style.minHeight='';
        updateRotation(image);
        image.style.height='';image.style.visibility='';
      });
@@ -297,7 +299,7 @@ function renderImageFolder(data){
      if(imageObserver)imageObserver.observe(image);
      else {image.src=page.url;armWatchdog();}
      // First images are readable while the remaining folder is scanned.
-     if(i<3){image.src=page.url;armWatchdog();}
+     if(!imageObserver && i<2){image.src=page.url;armWatchdog();}
    }
    stack.insertBefore(frag,sentinel);
    busy=false;
@@ -377,7 +379,7 @@ function renderImageFolder(data){
              if(img.isConnected && img.dataset.recycled!=='yes' &&
                 !(img.complete&&img.naturalWidth>0))
                {img.removeAttribute('src');img.dispatchEvent(new Event('error'));}
-           },9000);
+           },30000);
          }
        }else if(img.getAttribute('src') && img.complete && img.naturalWidth>0){
          const h=Math.max(1,Math.ceil(img.getBoundingClientRect().height));
@@ -387,16 +389,16 @@ function renderImageFolder(data){
          img.removeAttribute('src');
        }
      }
-   },{root:view,rootMargin:'320% 0px',threshold:0});
+   },{root:view,rootMargin:'70% 0px',threshold:0});
    batchObserver=new IntersectionObserver(records=>{
      for(const record of records)if(record.isIntersecting)appendBatch();
-   },{root:view,rootMargin:'120% 0px',threshold:0});
+   },{root:view,rootMargin:'20% 0px',threshold:0});
    batchObserver.observe(sentinel);
  }
  function add(incoming){
    if(!host.isConnected||!Array.isArray(incoming))return;
    const from=pages.length;
-   pages.push(...incoming);
+   for(const page of incoming)if(page&&page.url)pages.push(page);
    if(selectedIndex<0){
      const found=incoming.findIndex(p=>p?.selected);
      if(found>=0){

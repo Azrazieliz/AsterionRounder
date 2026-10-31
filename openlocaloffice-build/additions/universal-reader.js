@@ -515,7 +515,7 @@ function archive(){
      if(/\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(entry.name)){
        const ext=entry.name.split('.').pop().toLowerCase();
        const im=E('img','fg-archive-img');im.alt=entry.name;
-       im.loading='lazy';
+       im.loading='eager';
        let watchdog=0;
        im.addEventListener('load',()=>{
          clearTimeout(watchdog);settle();
@@ -560,7 +560,7 @@ function archive(){
  if(isComic){
    const stack=E('div','fg-pdf-stack fg-comic-stack'),cells=[],loaded=new Map();
    let disposed=false,observer=null,scheduled=false,inFlight=0;
-   const MAX_IMAGE_FETCHES=remoteArchive?2:4;
+   const MAX_IMAGE_FETCHES=remoteArchive?2:3;
    const queue=new Set();
    const root=E('div','fg-pdf-container');
    function enqueue(i){
@@ -615,6 +615,7 @@ function archive(){
    }
    entries.forEach((entry,i)=>{
      const frame=E('section','fg-comic-section');
+     frame.style.minHeight='80vh';
      frame.dataset.page=String(i+1);
      frame.setAttribute('aria-label','Comic image '+(i+1)+' '+entry.name);
      frame.appendChild(E('div','fg-pdf-skeleton','Image '+(i+1)));

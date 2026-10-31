@@ -52,7 +52,7 @@ public final class FgTeraboxMediaDataSource implements DataSource {
         if(buffer==null||cursor>=buffer.length){
             try{
                 int request=(int)(remaining<0 ? 256*1024:
-                    Math.min(256*1024L,remaining));
+                    Math.min(512*1024L,remaining));
                 if(request==0)return C.RESULT_END_OF_INPUT;
                 buffer=cloud.readRange(cloudPath,position,request);
                 cursor=0;
