@@ -150,7 +150,7 @@ function openBook(item){
 const queuedCovers=new WeakSet();
 const coverJobs=[];
 let activeCoverJobs=0;
-const MAX_CLOUD_COVERS=6;
+const MAX_CLOUD_COVERS=8;
 function pumpCovers(){
  while(activeCoverJobs<MAX_CLOUD_COVERS&&coverJobs.length){
    const job=coverJobs.shift();
@@ -179,7 +179,7 @@ const coverObserver=window.IntersectionObserver?new IntersectionObserver(changes
    coverObserver.unobserve(item.target);
    item.target._fgStartCover?.();
  }
-},{root:body,rootMargin:'0px'}):null;
+},{root:body,rootMargin:'320px 0px'}):null;
 function loadRemoteCover(image,url,cover){
  if(queuedCovers.has(image))return;
  queuedCovers.add(image);
