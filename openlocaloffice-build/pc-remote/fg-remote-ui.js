@@ -10,7 +10,11 @@ const endpoint=()=>String(bridge()?.getRemoteEndpoint?.()||'').trim();
 const URL_ROOT=()=>endpoint()||defaultLocal;
 const bridge=()=>window.AndroidBridge||null;
 let overlay=null,status=null,viewport=null,frame=null,active=null,kind='cube',busy=false,scheduled=false;
-let yaw=.4,pitch=.2,distance=2.5,contacts=new Map(),lastSpan=0,serial=0,dead=false;
+// Orbit parameters always move the remote CAMERA. The imported 3D model
+// remains stationary in native CharaStudio/Blender.
+let yaw=0,pitch=0,distance=3.2,panX=0,panY=1.25;
+let contacts=new Map(),lastSpan=0,lastCenter=null,serial=0,dead=false;
+let lastGestureRequest=0;
 const el=(tag,cls,text)=>{
   const x=document.createElement(tag);
   if(cls)x.className=cls;
@@ -65,9 +69,17 @@ async function render(){
   busy=true;const at=++serial;
   try{
     setStatus(kind==='cube'||kind==='blend'?'Blender rendering in background…':'Koikatsu rendering in background…');
+    // Match the transmitted camera pixels to the available phone viewport,
+    // avoiding the hardcoded 680x800 letterboxed rectangle.
+    const cw=Math.max(1,viewport.clientWidth),ch=Math.max(1,viewport.clientHeight);
+    const scale=Math.min(2,1200/cw,1920/ch);
+    const width=Math.max(240,Math.round(cw*scale));
+    const height=Math.max(240,Math.round(ch*scale));
     const url='/api/frame?session='+encodeURIComponent(active)+
       '&yaw='+encodeURIComponent(yaw)+'&pitch='+encodeURIComponent(pitch)+
-      '&distance='+encodeURIComponent(distance);
+      '&distance='+encodeURIComponent(distance)+
+      '&panx='+encodeURIComponent(panX)+'&pany='+encodeURIComponent(panY)+
+      '&width='+width+'&height='+height;
     const data=await (await api(url)).blob();
     if(dead||at!==serial)return;
     const objectUrl=URL.createObjectURL(data);
@@ -114,11 +126,14 @@ function close(){
   dead=true;active=null;contacts.clear();serial++;
   if(frame?.dataset?.objectUrl)URL.revokeObjectURL(frame.dataset.objectUrl);
   if(overlay)overlay.remove();overlay=null;frame=null;status=null;
+  document.body.classList.remove('fg-pc-active');
 }
 function open(nextKind='cube'){
   close();dead=false;kind=nextKind;active=null;busy=false;scheduled=false;
-  yaw=.4;pitch=.2;distance=2.5;
+  yaw=0;pitch=0;distance=3.2;panX=0;panY=1.25;
+  lastSpan=0;lastCenter=null;lastGestureRequest=0;
   overlay=el('section','fg-pc-overlay');overlay.setAttribute('role','dialog');
+  document.body.classList.add('fg-pc-active');
   overlay.setAttribute('aria-label','Native PC 3D Viewer');
   const head=el('div','fg-pc-head');
   head.append(el('strong',null,kind==='koikatsu'?'Koikatsu · PC Native 3D':
@@ -130,7 +145,7 @@ function open(nextKind='cube'){
   viewport=el('div','fg-pc-viewport');
   frame=el('img','fg-pc-frame');frame.alt='Remote native 3D scene';
   frame.draggable=false;frame.hidden=true;
-  frame.onload=()=>{if(!dead){frame.hidden=false;setStatus('PC-native 3D · drag to orbit · pinch to zoom');}};
+  frame.onload=()=>{if(!dead){frame.hidden=false;setStatus('Drag: orbit camera · pinch: zoom · two-finger drag: pan');}};
   frame.onerror=()=>{if(!dead){frame.hidden=true;setStatus('Remote frame could not be displayed. Retry connection.');}};
   const placeholder=el('div','fg-pc-placeholder','Opening native 3D renderer on the connected PC…');
   viewport.append(placeholder,frame);overlay.append(viewport);
@@ -147,7 +162,7 @@ function open(nextKind='cube'){
   };
   connect.onclick=connectNow;
   const reset=el('button','fg-pc-action','Reset view');
-  reset.onclick=()=>{yaw=.4;pitch=.2;distance=2.5;requestFrame();};
+  reset.onclick=()=>{yaw=0;pitch=0;distance=3.2;panX=0;panY=1.25;requestFrame();};
   const settings=el('button','fg-pc-action','Remote settings');
   settings.onclick=()=>{
     const existing=overlay.querySelector('.fg-pc-remote-config');
@@ -155,36 +170,73 @@ function open(nextKind='cube'){
     else overlay.insertBefore(showRemoteConfig(),status);
   };
   actions.append(connect,reset,settings);overlay.append(actions);
-  let center=null;
+  const clamp=(x,low,high)=>Math.min(high,Math.max(low,x));
+  const sampleFrame=()=>{
+    const now=Date.now();
+    // Send only the latest camera pose, not one PC render per touch event.
+    if(now-lastGestureRequest>=250){lastGestureRequest=now;requestFrame();}
+  };
+  const twoFinger=()=>{
+    const [a,b]=[...contacts.values()];
+    return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,
+      span:Math.hypot(a.x-b.x,a.y-b.y)};
+  };
   viewport.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();
     viewport.setPointerCapture(e.pointerId);
     contacts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    center=null;
+    if(contacts.size===2){
+      const p=twoFinger();lastSpan=p.span;lastCenter={x:p.x,y:p.y};
+    }
   });
   viewport.addEventListener('pointermove',e=>{
     if(!contacts.has(e.pointerId))return;
-    const old=contacts.get(e.pointerId);
+    e.preventDefault();
+    const before=contacts.get(e.pointerId);
     contacts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(contacts.size===1){
-      yaw+=(e.clientX-old.x)*.012;
-      pitch=Math.max(-1.25,Math.min(1.25,pitch+(e.clientY-old.y)*.008));
+      // Horizontal/vertical swipes orbit the CAMERA around the subject.
+      const dx=e.clientX-before.x,dy=e.clientY-before.y;
+      yaw-=dx/Math.max(240,viewport.clientWidth)*Math.PI*1.6;
+      pitch=clamp(pitch-dy/Math.max(300,viewport.clientHeight)*Math.PI*1.25,-1.15,1.15);
+      lastCenter=null;lastSpan=0;
+      sampleFrame();
     }else if(contacts.size===2){
-      const points=[...contacts.values()];
-      const span=Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);
-      if(lastSpan)distance=Math.max(1.05,Math.min(15,distance*lastSpan/Math.max(span,1)));
-      lastSpan=span;
+      const p=twoFinger();
+      if(lastSpan>4&&p.span>4)
+        distance=clamp(distance*lastSpan/p.span,1.25,12);
+      if(lastCenter){
+        const dx=p.x-lastCenter.x,dy=p.y-lastCenter.y;
+        const shift=distance*1.35/Math.max(240,viewport.clientWidth);
+        panX=clamp(panX+dx*Math.cos(yaw)*shift,-4,4);
+        panY=clamp(panY-dy*shift,.25,3.5);
+      }
+      lastSpan=p.span;lastCenter={x:p.x,y:p.y};
+      sampleFrame();
     }
   });
   const end=e=>{
-    contacts.delete(e.pointerId);lastSpan=0;
+    if(!contacts.has(e.pointerId))return;
+    contacts.delete(e.pointerId);lastSpan=0;lastCenter=null;
     if(contacts.size===0)requestFrame();
+    else if(contacts.size===2){
+      const p=twoFinger();lastSpan=p.span;lastCenter={x:p.x,y:p.y};
+    }
   };
-  viewport.addEventListener('pointerup',end);viewport.addEventListener('pointercancel',end);
+  viewport.addEventListener('pointerup',end);
+  viewport.addEventListener('pointercancel',end);
+  viewport.addEventListener('wheel',e=>{
+    e.preventDefault();
+    distance=clamp(distance*Math.exp(e.deltaY*.001),1.25,12);
+    sampleFrame();
+  },{passive:false});
   document.body.append(overlay);
   // The normal path is automatic, no user Pair or Open action required.
   if(token()&&endpoint())setTimeout(connectNow,0);
   else setStatus('Remote PC is not configured on this installation.');
 }
+window.addEventListener('resize',()=>{if(overlay&&!dead)requestFrame();});
 window.FileGestionerRemoteViewer={open,onOpen,close};
 const entry=el('button','fg-pc-entry','PC 3D');
 entry.type='button';entry.setAttribute('aria-label','Open independent native Blender cube on PC');
