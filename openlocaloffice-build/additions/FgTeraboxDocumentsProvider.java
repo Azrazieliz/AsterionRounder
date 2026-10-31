@@ -67,11 +67,53 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         if (path == null || !path.startsWith("/")) throw new IllegalArgumentException("Invalid cloud path");
         return DocumentsContract.buildDocumentUri(AUTHORITY, "tb:" + path);
     }
+    // Private fast opening: the library already received this file's size
+    // during listing. Pass it to the provider via a harmless document-ID hint
+    // to avoid a redundant synchronous network lookup on openDocument().
+    // The signed CDN URL and the ndus credential are NOT encoded in the URI.
+    public static Uri uriFor(String path,long size){
+        if(path==null||!path.startsWith("/")||size<0)return uriFor(path);
+        String encoded=android.util.Base64.encodeToString(
+            path.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+            android.util.Base64.NO_PADDING);
+        return DocumentsContract.buildDocumentUri(AUTHORITY,"tb2:"+encoded+"."+size);
+    }
     private static String path(String docId) throws IOException {
-        if (docId == null || !docId.startsWith("tb:/") || docId.contains("/../")
-              || docId.endsWith("/..") || docId.contains("\n") || docId.contains("\r"))
-            throw new IOException("Invalid TeraBox document ID");
-        return docId.substring(3);
+        if(docId==null)throw new IOException("Missing TeraBox document ID");
+        String p;
+        if(docId.startsWith("tb2:")){
+            int split=docId.lastIndexOf('.');
+            if(split<=4)throw new IOException("Malformed TeraBox document ID");
+            try{
+                p=new String(android.util.Base64.decode(docId.substring(4,split),
+                    android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP),
+                    java.nio.charset.StandardCharsets.UTF_8);
+                long size=Long.parseLong(docId.substring(split+1));
+                if(size<0)throw new IOException("Invalid cloud size");
+            }catch(IllegalArgumentException ex){
+                throw new IOException("Malformed cloud document ID",ex);
+            }
+        }else if(docId.startsWith("tb:/"))p=docId.substring(3);
+        else throw new IOException("Invalid cloud document ID");
+        if(!p.startsWith("/")||p.contains("/../")||p.endsWith("/..")||
+           p.contains("\n")||p.contains("\r"))throw new IOException("Unsafe cloud path");
+        return p;
+    }
+    public static String cloudPath(Uri uri)throws IOException{
+        if(uri==null||!AUTHORITY.equals(uri.getAuthority()))
+            throw new IOException("Not an Asterion TeraBox document");
+        return path(DocumentsContract.getDocumentId(uri));
+    }
+    public static long sizeHint(Uri uri){
+        if(uri==null||!AUTHORITY.equals(uri.getAuthority()))return -1;
+        try{return hintedLength(DocumentsContract.getDocumentId(uri));}
+        catch(Exception ignored){return -1;}
+    }
+    private static long hintedLength(String docId){
+        if(docId==null||!docId.startsWith("tb2:"))return -1;
+        try{return Long.parseLong(docId.substring(docId.lastIndexOf('.')+1));}
+        catch(Exception ignored){return -1;}
     }
     @Override public boolean onCreate() {
         client = new FgTeraboxClient(getContext());
@@ -125,6 +167,12 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
                     // system picker or startup Binder transaction.
                     item=new JSONObject().put("server_filename",
                         p.substring(p.lastIndexOf('/')+1)).put("path",p);
+                }
+                if(hintedLength(documentId)>=0){
+                    // Preserve the original stored metadata fields, only patch
+                    // the length hint for this intra-app document URI.
+                    item=new JSONObject(item.toString());
+                    item.put("size",hintedLength(documentId));
                 }
                 addDocument(rows,item,p);
             }
@@ -211,30 +259,34 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         if (!"r".equals(mode)) throw new java.io.FileNotFoundException("Cloud provider is read-only");
         try {
             String cloudPath = path(documentId);
-            JSONObject details = client.fileDetails(cloudPath);
-            if (details.optInt("isdir",0) != 0) throw new IOException("Cannot read a folder as a file");
-            long size = details.optLong("size", -1);
-            if (size < 0) throw new IOException("TeraBox did not supply a valid file length");
+            long size=hintedLength(documentId);
+            if(size<0){
+                JSONObject details=client.fileDetails(cloudPath);
+                if(details.optInt("isdir",0)!=0)throw new IOException("Cannot open a cloud folder");
+                size=details.optLong("size",-1);
+            }
+            if(size<0)throw new IOException("TeraBox did not supply a valid file length");
+            final long fileSize=size;
             StorageManager storage = (StorageManager)getContext().getSystemService(Context.STORAGE_SERVICE);
             return storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY,
                 new ProxyFileDescriptorCallback() {
                     private long blockOffset = -1;
                     private byte[] block;
-                    @Override public long onGetSize() { return size; }
+                    @Override public long onGetSize() { return fileSize; }
                     @Override public synchronized int onRead(long offset, int request, byte[] data)
                             throws android.system.ErrnoException {
                         try {
                             if (signal != null && signal.isCanceled()) throw new IOException("Read cancelled");
-                            if (request == 0 || offset >= size) return 0;
+                            if (request == 0 || offset >= fileSize) return 0;
                             if (offset < 0) throw new IOException("Negative file offset");
-                            int remaining = (int)Math.min(request, size - offset);
+                            int remaining = (int)Math.min(request, fileSize - offset);
                             int done = 0;
                             while (done < remaining) {
                                 long position = offset + done;
                                 if (block == null || position < blockOffset ||
                                     position >= blockOffset + block.length) {
                                     blockOffset = position;
-                                    int fetch = (int)Math.min(512 * 1024L, size - position);
+                                    int fetch = (int)Math.min(512 * 1024L, fileSize - position);
                                     block = client.readRange(cloudPath, position, fetch);
                                     if (block.length == 0) throw new IOException("Unexpected end of cloud file");
                                 }

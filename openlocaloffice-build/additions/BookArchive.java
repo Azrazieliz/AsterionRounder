@@ -270,6 +270,46 @@ public final class BookArchive implements Closeable {
         InputStream stream=zip.getInputStream(entry);
         return new WebResourceResponse(mime(path),null,new BoundedStream(stream,MAX_IMAGE_BYTES));
     }
+    /** Native sampled JPEG after an archive image fails to decode in WebView.
+     * Bounded output and bounded pixel count prevent bitmap heap exhaustion.
+     * Original archive and full-resolution member remain unchanged.
+     */
+    public WebResourceResponse responseSampled(String requestedPath) throws IOException{
+        String prefix="/book-fallback/"+token+"/";
+        if(requestedPath==null||!requestedPath.startsWith(prefix))return null;
+        String path=decodePath(requestedPath.substring(prefix.length()));
+        if(path.startsWith("/")||path.contains("../")||path.contains("\\")||
+           path.indexOf('\0')>=0)return null;
+        ZipEntry entry=zip.getEntry(path);
+        if(entry==null||entry.isDirectory()||!isImage(path)||
+           entry.getSize()>MAX_IMAGE_BYTES)return null;
+        android.graphics.BitmapFactory.Options opts=new android.graphics.BitmapFactory.Options();
+        opts.inJustDecodeBounds=true;
+        try(InputStream input=new BoundedStream(zip.getInputStream(entry),MAX_IMAGE_BYTES)){
+            android.graphics.BitmapFactory.decodeStream(input,null,opts);
+        }
+        if(opts.outWidth<=0||opts.outHeight<=0)return null;
+        int sample=1;
+        while(opts.outWidth/sample>4096||opts.outHeight/sample>4096||
+            (long)(opts.outWidth/sample)*(opts.outHeight/sample)>10000000L)
+            sample*=2;
+        opts.inJustDecodeBounds=false;
+        opts.inSampleSize=sample;
+        opts.inPreferredConfig=android.graphics.Bitmap.Config.RGB_565;
+        android.graphics.Bitmap decoded;
+        try(InputStream input=new BoundedStream(zip.getInputStream(entry),MAX_IMAGE_BYTES)){
+            decoded=android.graphics.BitmapFactory.decodeStream(input,null,opts);
+        }
+        if(decoded==null)throw new IOException("Archive image decoder returned no pixels");
+        java.io.ByteArrayOutputStream jpeg=new java.io.ByteArrayOutputStream(256*1024);
+        try{
+            if(!decoded.compress(android.graphics.Bitmap.CompressFormat.JPEG,86,jpeg))
+                throw new IOException("Archive fallback JPEG conversion failed");
+        }finally{decoded.recycle();}
+        android.util.Log.i("FG_IMAGE","ZIP_PAGE_SAMPLED sample="+sample+" bytes="+jpeg.size());
+        return new WebResourceResponse("image/jpeg",null,
+            new ByteArrayInputStream(jpeg.toByteArray()));
+    }
     /** Only the requested image is decompressed. Used by native bookshelf covers. */
     public InputStream coverStream(String name) throws IOException {
         if(name==null||!isImage(name))throw new IOException("Not a cover image");

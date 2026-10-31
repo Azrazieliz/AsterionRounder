@@ -131,7 +131,37 @@ function epub(doc){
   scroll.setAttribute('tabindex','0');
   scroll.setAttribute('aria-label','Book text. Scroll continuously to read.');
   const bookContent=el('div','fg-book-content');
-  const nodes=[],loaded=new Set(),queue=new Set(),heights=new Map();
+  const nodes=[],loaded=new Set(),queue=new Set(),heights=new Map(),requested=new Set();
+  const chapterTimeouts=new Map();
+  const chapterToken=String(doc.token||'');
+  const bookCallbacks=window.FileGestionerBookReader||{};
+  bookCallbacks.receiveChapter=(token,i,raw)=>{
+    if(disposed||token!==chapterToken||i<0||i>=nodes.length)return;
+    requested.delete(i);
+    clearTimeout(chapterTimeouts.get(i));chapterTimeouts.delete(i);
+    try{
+      const data=JSON.parse(raw);
+      if(data.error)throw Error(data.error);
+      const chapter=el('article','fg-book-article');
+      chapter.appendChild(chapterFragment(data.html||'',data.base));
+      nodes[i].replaceChildren(chapter);
+      loaded.add(i);
+      if(nodes[i].offsetHeight>0)heights.set(i,nodes[i].offsetHeight);
+      if(restoreMark&&restoreMark.chapter===i){
+        const percent=Math.max(0,Math.min(1,Number(restoreMark.percent)||0));
+        scroll.scrollTop=nodes[i].offsetTop+nodes[i].offsetHeight*percent;
+        restoreMark=null;
+      }
+    }catch(error){
+      const retry=button('Retry chapter',()=>{
+        nodes[i].replaceChildren(el('div','fg-book-loading','Loading chapter…'));
+        enqueue(i);
+      });
+      nodes[i].replaceChildren(el('p','fg-book-error','Chapter unavailable.'),retry);
+    }
+    trim();
+  };
+  window.FileGestionerBookReader=bookCallbacks;
   let disposed=false,obs=null,workQueued=false,scrollFrame=0,current=0,showUi=true;
   let restoreMark=null;
   const bottom=el('div','fg-book-bottom');
@@ -243,24 +273,22 @@ function epub(doc){
   function process(){
     workQueued=false;if(disposed||!queue.size)return;
     const i=queue.values().next().value;queue.delete(i);
-    const container=nodes[i];
-    try{
-      const data=JSON.parse(bridge.getBookChapter(i));
-      if(data.error)throw Error(data.error);
-      const chapter=el('article','fg-book-article');
-      chapter.appendChild(chapterFragment(data.html||'',data.base));
-      container.replaceChildren(chapter);
-      loaded.add(i);
-      if(container.offsetHeight>0)heights.set(i,container.offsetHeight);
-      if(restoreMark&&restoreMark.chapter===i){
-        const percent=Math.max(0,Math.min(1,Number(restoreMark.percent)||0));
-        scroll.scrollTop=container.offsetTop+container.offsetHeight*percent;
-        restoreMark=null;
+    if(!loaded.has(i)&&!requested.has(i)){
+      requested.add(i);
+      const fallbackTimer=setTimeout(()=>{
+        if(disposed||!requested.has(i))return;
+        requested.delete(i);
+        nodes[i].replaceChildren(el('p','fg-book-error','Chapter request timed out.'),
+          button('Retry',()=>enqueue(i)));
+      },25000);
+      chapterTimeouts.set(i,fallbackTimer);
+      try{bridge.requestBookChapter(i,chapterToken);}
+      catch(error){
+        clearTimeout(fallbackTimer);requested.delete(i);
+        nodes[i].replaceChildren(el('p','fg-book-error','Reader connection unavailable'),
+          button('Retry',()=>enqueue(i)));
       }
-    }catch(error){
-      container.replaceChildren(el('p','fg-book-error','This chapter could not be displayed.'));
     }
-    trim();
     if(queue.size){workQueued=true;requestAnimationFrame(process);}
   }
   function trim(){
@@ -328,6 +356,7 @@ function epub(doc){
   });
   cleanup=()=>{
     disposed=true;obs?.disconnect();queue.clear();
+    chapterTimeouts.forEach(clearTimeout);chapterTimeouts.clear();
     if(scrollFrame)cancelAnimationFrame(scrollFrame);
     root.remove();document.body.classList.remove('fg-book-mode');
     cleanup=null;

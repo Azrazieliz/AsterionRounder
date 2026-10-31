@@ -515,7 +515,26 @@ function archive(){
        im.loading='lazy';
        im.addEventListener('load',()=>{
          if(isComic)bridge()?.readerDiagnostic?.('COMIC_IMAGE_LOADED');
-       },{once:true});
+       });
+       im.addEventListener('error',()=>{
+         const current=im.currentSrc||im.src;
+         if(!im.dataset.sampleAttempted &&
+            current.includes('https://fg-assets.invalid/book/')){
+           im.dataset.sampleAttempted='true';
+           im.src=current.replace('/book/','/book-fallback/');
+           bridge()?.readerDiagnostic?.('ARCHIVE_NATIVE_SAMPLE_REQUESTED');
+           return;
+         }
+         im.removeAttribute('src');
+         const retry=button('Retry image',()=>{
+            retry.remove();im.dataset.sampleAttempted='';
+            im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
+              'data:image/jpeg;base64,'+data;
+         });
+         retry.classList.add('fg-image-retry');
+         dest.appendChild(retry);
+         bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_FAILED');
+       });
        im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
          'data:image/'+(ext==='jpg'?'jpeg':ext)+';base64,'+data;
        dest.appendChild(im);

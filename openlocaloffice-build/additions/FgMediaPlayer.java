@@ -31,6 +31,10 @@ import java.util.concurrent.Executors;
  */
 @androidx.media3.common.util.UnstableApi
 public final class FgMediaPlayer implements AutoCloseable {
+    public interface MediaNavigator {
+        void navigate(int direction,boolean random);
+    }
+    private final MediaNavigator mediaNavigator;
     private final Activity activity;
     private final FrameLayout root;
     private final TextView status;
@@ -48,12 +52,15 @@ public final class FgMediaPlayer implements AutoCloseable {
     private Uri original;
     private String filename;
     private boolean video;
+    private final boolean teraboxDirect;
     private final Runnable onExit;
 
     public FgMediaPlayer(Activity activity,Uri original,String filename,
-                         boolean video,Runnable onExit){
+                         boolean video,Runnable onExit,MediaNavigator mediaNavigator){
         this.activity=activity;this.original=original;this.filename=filename;
         this.video=video;this.onExit=onExit;
+        this.mediaNavigator=mediaNavigator;
+        teraboxDirect=FgTeraboxDocumentsProvider.AUTHORITY.equals(original.getAuthority());
         previousOrientation=activity.getRequestedOrientation();
         previousSystemUi=activity.getWindow().getDecorView().getSystemUiVisibility();
         int flags=activity.getWindow().getAttributes().flags;
@@ -74,7 +81,7 @@ public final class FgMediaPlayer implements AutoCloseable {
         player=new ExoPlayer.Builder(activity).build();
         display.setPlayer(player);
         TextView title=new TextView(activity);
-        title.setText((video?"Video · ":"Audio · ")+filename);
+        title.setText((video?"Video Â· ":"Audio Â· ")+filename);
         title.setTextColor(0xffffffff);
         title.setBackgroundColor(0xcc152039);
         title.setPadding(20,16,150,16);
@@ -125,6 +132,29 @@ public final class FgMediaPlayer implements AutoCloseable {
                     gestureRow.setLayoutParams(params);
                 }
             });
+            // Actual playlist navigation, not decorative buttons. Keep the
+            // controls above the media surface without covering the seek bar.
+            LinearLayout playlist=new LinearLayout(activity);
+            playlist.setOrientation(LinearLayout.HORIZONTAL);
+            playlist.setGravity(Gravity.CENTER);
+            playlist.setPadding(6,4,6,4);
+            playlist.setBackgroundColor(0xaa101725);
+            Button prev=new Button(activity);prev.setText("Previous");
+            Button next=new Button(activity);next.setText("Next");
+            Button random=new Button(activity);random.setText("Random");
+            prev.setContentDescription("Previous video in this folder");
+            next.setContentDescription("Next video in this folder");
+            random.setContentDescription("Play a random video in this folder");
+            prev.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(-1,false);});
+            next.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(1,false);});
+            random.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(0,true);});
+            for(Button item:new Button[]{prev,next,random}){
+                item.setAllCaps(false);item.setTextSize(11);item.setMinWidth(0);
+                playlist.addView(item,new LinearLayout.LayoutParams(0,-2,1f));
+            }
+            FrameLayout.LayoutParams playlistPos=new FrameLayout.LayoutParams(
+                -1,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+            root.addView(playlist,playlistPos);
             enterVideoFullscreen();
         }
         status=new TextView(activity);
@@ -133,7 +163,7 @@ public final class FgMediaPlayer implements AutoCloseable {
         status.setBackgroundColor(0xbb101827);
         status.setPadding(14,12,14,12);
         root.addView(status,new FrameLayout.LayoutParams(
-            video?-2:-1,-2,video?(Gravity.TOP|Gravity.CENTER_HORIZONTAL):Gravity.BOTTOM));
+            video?-2:-1,-2,video?(Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL):Gravity.BOTTOM));
         player.addListener(new Player.Listener(){
             @Override public void onPlaybackStateChanged(int state){
                 if(closed)return;
@@ -142,7 +172,7 @@ public final class FgMediaPlayer implements AutoCloseable {
                     Log.i("FG_MEDIA","MEDIA_READY "+filename+
                         " duration_ms="+player.getDuration());
                 }else if(state==Player.STATE_BUFFERING)
-                    showMessage("Buffering from "+original.getAuthority()+"…");
+                    showMessage("Buffering from "+original.getAuthority()+"â€¦");
                 else if(state==Player.STATE_ENDED)showMessage("Playback finished");
             }
             @Override public void onRenderedFirstFrame(){
@@ -150,9 +180,13 @@ public final class FgMediaPlayer implements AutoCloseable {
             }
             @Override public void onPlayerError(PlaybackException error){
                 Log.e("FG_MEDIA","PLAYBACK_ERROR code="+error.getErrorCodeName(),error);
-                if(!fallbackStarted){
-                    fallbackStarted=true;
-                    copyThenPlay();
+                if(teraboxDirect){
+                    // A cloud file is a seekable data source. Falling back to
+                    // copyThenPlay() would silently download the entire video.
+                    showMessage("TeraBox playback unavailable: "+error.getErrorCodeName()+
+                        " · tap Back to retry");
+                }else if(!fallbackStarted){
+                    fallbackStarted=true;copyThenPlay();
                 }else showMessage("Unable to decode or play this file: "+error.getMessage());
             }
         });
@@ -164,7 +198,21 @@ public final class FgMediaPlayer implements AutoCloseable {
             fallbackStarted=true;
             Log.i("FG_MEDIA","REMOTE_PIPE_PROGRESSIVE "+filename);
             copyThenPlay();
-        }else play(original);
+        }else if(teraboxDirect)playTeraboxRanges();
+        else play(original);
+    }
+    private void playTeraboxRanges(){
+        try{
+            Log.i("FG_MEDIA","TERABOX_DIRECT_RANGE_PLAY");
+            androidx.media3.datasource.DataSource.Factory factory=
+                ()->new FgTeraboxMediaDataSource(activity,original);
+            player.setMediaSource(new ProgressiveMediaSource.Factory(factory)
+                .createMediaSource(MediaItem.fromUri(original)));
+            player.prepare();player.play();
+        }catch(Exception error){
+            Log.e("FG_MEDIA","TERABOX_RANGE_PREPARE_FAILED",error);
+            showMessage("Unable to start cloud video: "+error.getMessage());
+        }
     }
     public View getView(){return root;}
     private void enterVideoFullscreen(){
@@ -227,7 +275,7 @@ public final class FgMediaPlayer implements AutoCloseable {
      */
     private void copyThenPlay(){
         final int version=session;
-        showMessage("Connecting to video stream…");
+        showMessage("Connecting to video streamâ€¦");
         io.execute(()->{
             FgGrowingMediaDataSource.Progress progress=null;
             try{
@@ -293,7 +341,7 @@ public final class FgMediaPlayer implements AutoCloseable {
                             reported=written;
                             final long copied=written;
                             Log.i("FG_MEDIA","STREAM_BYTES_READY "+copied);
-                            showMessage("Streaming "+copied/1048576+" MB received…");
+                            showMessage("Streaming "+copied/1048576+" MB receivedâ€¦");
                             StatFs stat=new StatFs(cacheDir.getAbsolutePath());
                             if(stat.getAvailableBytes()<64L*1024*1024)
                                 throw new IOException("Not enough space to cache video");
