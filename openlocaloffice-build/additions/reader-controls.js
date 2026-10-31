@@ -190,11 +190,13 @@ function renderImageFolder(data){
  const modeButton=btn('Pages','Switch to page-by-page images',()=>switchMode());
  const position=el('span','fg-image-position','0 / …');
  const collapse=btn('⌄','Toggle image controls',()=>bar.classList.toggle('fg-image-toolbar-small'));
+ let pending3dOpen=false;
  const koikatsu=btn('Check 3D','Verify whether this PNG contains a real Koikatsu character',
    ()=>{
-     if(koikatsu.dataset.verified==='true')
+     if(koikatsu.dataset.verified==='true'){
        window.FileGestionerRemoteViewer?.open('koikatsu');
-     else{
+     }else{
+       pending3dOpen=true;
        koikatsu.textContent='Checking card…';
        window.AndroidBridge?.verifyCurrentKoikatsuCard?.();
      }
@@ -232,7 +234,15 @@ function renderImageFolder(data){
  }
  function pageSections(){return stack.querySelectorAll('.fg-folder-page');}
  function setPosition(i){
+   const prior=current;
    current=Math.max(0,Math.min(Math.max(0,pages.length-1),i));
+   if(current!==prior){
+     pending3dOpen=false;
+     koikatsu.dataset.verified='false';
+     koikatsu.textContent='Check 3D';
+     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'');
+     window.AndroidBridge?.selectImageCollectionPage?.(current);
+   }
    position.textContent=pages.length?(current+1)+' / '+pages.length+(finished?'':'+'):'0 / …';
    previous.disabled=current===0;
    next.disabled=finished&&current+1>=pages.length;
@@ -401,10 +411,18 @@ function renderImageFolder(data){
    select:i=>{selectedIndex=i;jumpTo(i);},
    koikatsuCard:valid=>{
      koikatsu.dataset.verified=valid?'true':'false';
-     koikatsu.hidden=!cardCandidate&&!valid;
+     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'')&&!valid;
      koikatsu.textContent=valid?'Open 3D':'Check 3D';
      koikatsu.title=valid?'Open verified Koikatsu character remotely in 3D':
-       'No verified 3D payload yet; tap to retry identification';
+       'This PNG has not been verified as a Koikatsu card';
+     if(pending3dOpen){
+       pending3dOpen=false;
+       if(valid)window.FileGestionerRemoteViewer?.open('koikatsu');
+       else{
+         koikatsu.textContent='Not a 3D card';
+         window.AndroidBridge?.readerDiagnostic?.('FG_3D_CARD_NOT_VERIFIED');
+       }
+     }
    }
  };
  view.classList.toggle('fg-image-paged',imageMode==='pages');
