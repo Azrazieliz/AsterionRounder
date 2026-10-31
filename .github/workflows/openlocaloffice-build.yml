@@ -10,6 +10,14 @@ on:
   workflow_dispatch:
   pull_request:
 
+# Only the newest commit on a PR consumes the Android emulator.
+concurrency:
+  group: file-gestioner-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -84,6 +92,7 @@ jobs:
           python3 ../hotfixes/apply-professional-pdf-ui.py
           cp ../additions/unified-viewer-controls.js app/src/main/assets/unified-viewer-controls.js
           python3 ../hotfixes/apply-unified-reader-experience.py
+          cp ../additions/RemoteBookSpool.java app/src/main/java/com/openlocal/office/core/RemoteBookSpool.java
           cp ../additions/BookArchive.java app/src/main/java/com/openlocal/office/core/BookArchive.java
           cp ../additions/SeekableZip.java app/src/main/java/com/openlocal/office/core/SeekableZip.java
           cp ../additions/StreamedText.java app/src/main/java/com/openlocal/office/core/StreamedText.java
@@ -96,6 +105,55 @@ jobs:
           python3 ../hotfixes/apply-premium-library-native.py
           python3 ../hotfixes/apply-premium-v13-reader.py
           python3 ../hotfixes/apply-navigation-back.py
+          python3 ../hotfixes/apply-seamless-webtoon.py
+          python3 ../hotfixes/apply-gesture-first-reader.py
+          python3 ../hotfixes/apply-device-ux-20261027.py
+          cp ../pc-remote/fg-remote-ui.js app/src/main/assets/fg-remote-ui.js
+          python3 ../hotfixes/apply-native-pc-remote.py
+          cp ../hotfixes/fg-early-page.js app/src/main/assets/fg-early-page.js
+          python3 ../hotfixes/apply-early-reader-preview.py
+          python3 ../hotfixes/apply-library-layout-final.py
+          cp ../additions/reader-controls.js app/src/main/assets/reader-controls.js
+          python3 ../hotfixes/apply-reading-platform-20261030.py
+          python3 ../hotfixes/apply-reader-controls-20261030.py
+          python3 ../hotfixes/apply-scale-library-20261031.py
+          python3 ../hotfixes/apply-scale-media-20261031.py
+          python3 ../hotfixes/apply-streamed-image-folders-20261031.py
+          python3 ../hotfixes/apply-image-fallback-20261031.py
+          python3 ../hotfixes/apply-image-immersive-20261031.py
+          python3 ../hotfixes/apply-native-file-actions-20261031.py
+          python3 ../hotfixes/apply-library-transfer-20261031.py
+          python3 ../hotfixes/apply-spreadsheet-mobile-20261031.py
+          python3 ../hotfixes/apply-file-conversion-20261031.py
+          python3 ../hotfixes/apply-release-version-20261031.py
+          cp ../additions/FgTeraboxClient.java app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          python3 ../hotfixes/apply-direct-terabox-20261031.py
+          cp ../additions/FgMediaPlayer.java app/src/main/java/com/openlocal/office/core/FgMediaPlayer.java
+          cp ../additions/FgGrowingMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgGrowingMediaDataSource.java
+          python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
+          grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'getTeraboxConfigured()' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'AES/GCM/NoPadding' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'androidx.media3:media3-exoplayer:1.11.1' app/build.gradle.kts
+          grep -Fq 'FgMediaPlayer' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'fgFolderPageMap' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'fgFallbackBitmap' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'setImageImmersiveInternal' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'getRemoteEndpoint' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'canManageLibraryFiles' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'copyLibraryFile' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'moveLibraryFile' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'convertLibraryFile' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'checkCollectionKoikatsu' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'fg-spreadsheet-reading' app/src/main/assets/style.css
+          node --check app/src/main/assets/app.js
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-media-image-regressions.cjs
+          python3 -m py_compile ../hotfixes/apply-reading-platform-20261030.py ../hotfixes/apply-reader-controls-20261030.py
+          node --check app/src/main/assets/reader-controls.js
+          grep -Fq 'openFolderImages' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'showFgMedia' app/src/main/java/com/openlocal/office/MainActivity.java
           python3 -m py_compile ../noworld-bridge/blender_preview_export.py ../noworld-bridge/noworld_asset_bridge.py
           python3 -m unittest discover -s ../noworld-bridge -p 'test_*.py' -v
           python3 -m py_compile ../noworld-bridge/inspect_noworld_glb.py
@@ -121,8 +179,10 @@ jobs:
           node --check app/src/main/assets/universal-reader.js
           node --check app/src/main/assets/unified-viewer-controls.js
           node ../hotfixes/test-continuous-reader.cjs
+          node ../hotfixes/test-seamless-webtoon.cjs
           node --check app/src/main/assets/unified-viewer-controls.js
           node ../hotfixes/test-unified-reader.cjs
+          node ../hotfixes/test-native-scroll.cjs
           node --check app/src/main/assets/epub-reader.js
           node ../hotfixes/test-premium-book-reader.cjs
           grep -Fq 'candidate.comicLike()' app/src/main/java/com/openlocal/office/MainActivity.java
@@ -208,7 +268,7 @@ jobs:
           set -euo pipefail
           node --check app/src/main/assets/app.js
           node --check app/src/main/assets/universal-reader.js
-          # Android-only renderer sources compile with Android SDK during assembleDebug.
+          # Android-only renderer sources compile with Android SDK during assembleRelease.
           # Existing JVM-only source harness remains executed before installation.
           grep -q 'android.intent.action.VIEW' app/src/main/AndroidManifest.xml
           grep -q 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' app/src/main/AndroidManifest.xml
@@ -244,89 +304,122 @@ jobs:
             openlocaloffice-build/project/app/src/main/AndroidManifest.xml
           retention-days: 1
 
-      - name: Build debug APK
+      # Release artifacts are signed with the existing identity only.
+      # Do not generate debug keys or an unsigned APK and call it a release.
+      - name: Normalize approved launcher assets for release
         working-directory: openlocaloffice-build/project
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: File-Gestioner-debug-apk
-          path: openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Enable emulator acceleration
-        if: github.event_name == 'pull_request'
         shell: bash
         run: |
+          set -euo pipefail
+          python3 ../hotfixes/normalize-release-icons.py
+
+      - name: Build release APK
+        working-directory: openlocaloffice-build/project
+        run: gradle --no-daemon --max-workers=2 assembleRelease --stacktrace
+
+      - name: Stage unsigned release for signing on authorized PC
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-Gestioner-unsigned-release-apk
+          path: openlocaloffice-build/project/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Validate existing release signing credentials
+        shell: bash
+        env:
+          FG_RELEASE_KEYSTORE_BASE64: ${{ secrets.FG_RELEASE_KEYSTORE_BASE64 }}
+          FG_RELEASE_STORE_PASSWORD: ${{ secrets.FG_RELEASE_STORE_PASSWORD }}
+          FG_RELEASE_KEY_ALIAS: ${{ secrets.FG_RELEASE_KEY_ALIAS }}
+          FG_RELEASE_KEY_PASSWORD: ${{ secrets.FG_RELEASE_KEY_PASSWORD }}
+          FG_RELEASE_CERT_SHA256: ${{ secrets.FG_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          for name in FG_RELEASE_KEYSTORE_BASE64 FG_RELEASE_STORE_PASSWORD FG_RELEASE_KEY_ALIAS FG_RELEASE_KEY_PASSWORD FG_RELEASE_CERT_SHA256; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Existing release signing configuration is missing: $name. No debug or substitute signing identity will be used."
+              exit 1
+            fi
+          done
+
+      - name: Sign and verify release with preserved signing identity
+        shell: bash
+        env:
+          FG_RELEASE_KEYSTORE_BASE64: ${{ secrets.FG_RELEASE_KEYSTORE_BASE64 }}
+          FG_RELEASE_STORE_PASSWORD: ${{ secrets.FG_RELEASE_STORE_PASSWORD }}
+          FG_RELEASE_KEY_ALIAS: ${{ secrets.FG_RELEASE_KEY_ALIAS }}
+          FG_RELEASE_KEY_PASSWORD: ${{ secrets.FG_RELEASE_KEY_PASSWORD }}
+          FG_RELEASE_CERT_SHA256: ${{ secrets.FG_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          temp_key="$(mktemp)"
+          trap 'rm -f "$temp_key"' EXIT
+          printf '%s' "$FG_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$temp_key"
+          unsigned="openlocaloffice-build/project/app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$unsigned" || { echo "::error::Unsigned release artifact is missing; refusing to re-sign any debug artifact."; exit 1; }
+          destination="openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk"
+          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$signer" sign --ks "$temp_key" --ks-type PKCS12 \
+            --ks-key-alias "$FG_RELEASE_KEY_ALIAS" \
+            --ks-pass env:FG_RELEASE_STORE_PASSWORD \
+            --key-pass env:FG_RELEASE_KEY_PASSWORD \
+            --out "$destination" "$unsigned"
+          "$signer" verify --verbose --print-certs "$destination"
+          actual="$("$signer" verify --print-certs "$destination" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          expected="$(printf '%s' "$FG_RELEASE_CERT_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+            rm -f "$destination"
+            echo "::error::Release signing certificate differs from the approved installed identity."
+            exit 1
+          fi
+          echo "Signed release certificate verified against approved fingerprint."
+
+      - name: Upload signed release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-Gestioner-signed-release-apk
+          path: openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish signed release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="file-gestioner-release-${{ github.run_number }}"
+          gh release create "$tag" openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "File Gestioner signed release candidate ${{ github.run_number }}" \
+            --notes "Signed release candidate using the preserved File Gestioner signing certificate. Device regression testing required before production rollout." \
+            --prerelease
+
+      - name: Enable emulator acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Android 16 startup and library UI screenshot
-        if: github.event_name == 'pull_request'
+      - name: Android 16 runtime validation — EPUB, archive, navigation
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 36
           arch: x86_64
           profile: pixel_6
+          emulator-boot-timeout: 1200
           disable-animations: true
-          script: |
-            adb install -r openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk
-            adb logcat -c
-            adb shell am start -W -n com.openlocal.office/.MainActivity
-            sleep 3
-            adb shell pidof -s com.openlocal.office | grep -Eq '[0-9]+' || { echo "File Gestioner failed to launch"; exit 1; }
-            adb logcat -d -s FG_READER_UI:I | grep -F 'LIBRARY_READY' || {
-              echo "The library WebView UI did not finish initializing"; exit 1
-            }
-            mkdir -p screenshots
-            adb exec-out screencap -p > screenshots/fg-reader-home.png
-            test -s screenshots/fg-reader-home.png
-            python3 openlocaloffice-build/hotfixes/create-large-epub-fixture.py /tmp/fg-large-book.epub
-            adb shell run-as com.openlocal.office mkdir -p files
-            adb exec-in run-as com.openlocal.office sh -c 'cat > files/fg-large-book.epub' < /tmp/fg-large-book.epub
-            adb shell am start -W -n com.openlocal.office/.MainActivity -a android.intent.action.VIEW -t application/epub+zip -d file:///data/user/0/com.openlocal.office/files/fg-large-book.epub
-            sleep 5
-            adb shell pidof -s com.openlocal.office | grep -Eq '[0-9]+' || { echo "Book opening crashed Android process"; exit 1; }
-            adb logcat -d -s FG_BOOK:I | tee screenshots/epub-native-parser.txt
-            grep -E 'EPUB_READY chapters=[1-9][0-9]* illustrations=[0-9]+' screenshots/epub-native-parser.txt || {
-              echo "Android EPUB parser did not parse the external-DTD book successfully"; exit 1
-            }
-            adb shell input keyevent KEYCODE_BACK
-            sleep 2
-            adb shell pidof -s com.openlocal.office | grep -Eq '[0-9]+' || { echo "Android Back incorrectly exited reader app"; exit 1; }
-            adb logcat -d -s FG_READER_UI:I | grep -F 'BACK_TO_LIBRARY' || {
-              echo "Android Back failed to return to the actual library"; exit 1
-            }
-            adb exec-out screencap -p > screenshots/fg-86mib-epub.png
-            test -s screenshots/fg-86mib-epub.png
-            python3 openlocaloffice-build/hotfixes/create-image-zip-fixture.py /tmp/fg-102-images.zip
-            adb exec-in run-as com.openlocal.office sh -c 'cat > files/fg-102-images.zip' < /tmp/fg-102-images.zip
-            adb shell am start -W -n com.openlocal.office/.MainActivity -a android.intent.action.VIEW -t application/zip -d file:///data/user/0/com.openlocal.office/files/fg-102-images.zip
-            sleep 4
-            adb shell pidof -s com.openlocal.office | grep -Eq '[0-9]+' || { echo "ZIP comic reader crashed"; exit 1; }
-            adb logcat -d -s FG_ARCHIVE:I | tee screenshots/archive-index-benchmark.txt
-            adb logcat -d -s FG_READER_UI:I | tee screenshots/reader-ui-events.txt
-            grep -F 'COMIC_IMAGE_LOADED' screenshots/reader-ui-events.txt || {
-              echo "The 102-page ZIP was indexed but the actual comic page did not decode"; exit 1
-            }
-            grep -Eq 'ZIP_READY count=102 comic=true elapsed_ms=[0-9]+' screenshots/archive-index-benchmark.txt || {
-              echo "The >30MiB ZIP did not successfully index all 102 images in comic mode"
-              exit 1
-            }
-            adb exec-out screencap -p > screenshots/fg-102-image-zip.png
-            test -s screenshots/fg-102-image-zip.png
-            rm -f /tmp/fg-102-images.zip
-            rm -f /tmp/fg-large-book.epub
-            adb logcat -b crash -d | tee screenshots/crash-log.txt
-            if grep -q 'FATAL EXCEPTION' screenshots/crash-log.txt; then exit 1; fi
+          script: bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
 
-      - name: Upload runtime smoke screenshot
-        if: github.event_name == 'pull_request'
+      - name: Upload runtime evidence even after a failure
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: File-Gestioner-runtime-screenshot
+          name: File-Gestioner-android-runtime-evidence
           path: screenshots/
-          retention-days: 3
+          if-no-files-found: warn
+          retention-days: 7

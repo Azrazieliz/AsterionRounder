@@ -123,8 +123,8 @@ function epub(doc){
   backTitle.append(title,author);
   const tocButton=button('Contents',()=>showContents(true),'Open table of contents');
   const settingsButton=button('Aa',()=>showSettings(true),'Reading appearance');
-  const openAnother=button('‹',()=>document.getElementById('openBtn')?.click(),
-    'Open another file');
+  const openAnother=button('‹',()=>window.FileGestionerLibrary?.show?.(),
+    'Return to library');
   openAnother.classList.add('fg-book-back');
   heading.append(openAnother,backTitle,tocButton,settingsButton);
   const scroll=el('div','fg-book-scroll');

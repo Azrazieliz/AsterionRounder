@@ -103,22 +103,27 @@ public final class SeekableZip implements Closeable {
             throw new IOException("Archive index exceeds supported safety limits");
         if(dirOffset<0||dirSize<0||dirOffset>length||dirSize>length-dirOffset)
             throw new IOException("Archive central directory is incomplete");
-        long p=dirOffset,endAt=dirOffset+dirSize;
+        // Remote SAF providers can turn every pread into a network range call.
+        // Fetch the bounded central directory once, then parse entries in memory.
+        // This avoids 2–3 remote reads per ZIP member (hundreds for webtoons).
+        byte[] directory=read(dirOffset,(int)dirSize);
+        int p=0,endAt=directory.length;
         for(long i=0;i<entries;i++){
-            byte[] header=read(p,46);
+            if(p>endAt-46)throw new IOException("Truncated ZIP central header");
+            byte[] header=Arrays.copyOfRange(directory,p,p+46);
             if(u32(header,0)!=CENTRAL_SIG)throw new IOException("Damaged ZIP central directory");
             int flags=u16(header,8),method=u16(header,10);
             long packed=u32(header,20),unpacked=u32(header,24),local=u32(header,42);
             int nameLength=u16(header,28),extraLength=u16(header,30),commentLength=u16(header,32);
-            long next=p+46L+nameLength+extraLength+commentLength;
+            long next=(long)p+46L+nameLength+extraLength+commentLength;
             if(next>endAt||next<0)throw new IOException("ZIP index member exceeds directory");
-            byte[] nameBytes=read(p+46,nameLength);
+            byte[] nameBytes=Arrays.copyOfRange(directory,p+46,p+46+nameLength);
             String name=new String(nameBytes,(flags&0x800)!=0?StandardCharsets.UTF_8:CP437);
             if(name.indexOf('\0')>=0||name.contains("\\")||name.startsWith("/")||
                name.equals("..")||name.startsWith("../")||name.contains("/../"))
                 throw new IOException("Invalid archive path");
             if(packed==0xffffffffL||unpacked==0xffffffffL||local==0xffffffffL){
-                byte[] extras=read(p+46+nameLength,extraLength);
+                byte[] extras=Arrays.copyOfRange(directory,p+46+nameLength,p+46+nameLength+extraLength);
                 int cursor=0; boolean resolved=false;
                 while(cursor+4<=extras.length){
                     int id=u16(extras,cursor),size=u16(extras,cursor+2);
@@ -142,7 +147,7 @@ public final class SeekableZip implements Closeable {
             r.entry=new ZipEntry(name);
             r.entry.setSize(unpacked);
             records.put(name,r);order.add(r.entry);
-            p=next;
+            p=(int)next;
         }
         if(records.isEmpty())throw new IOException("Archive has no files");
     }

@@ -13,14 +13,16 @@ once('    private static final int REQ_SAVE_COPY = 1002;',
 once('    private String imageStreamToken;', '''
     private String imageStreamToken;
     private volatile Uri libraryTree;
+    private final java.util.concurrent.ExecutorService collectionIo=
+        java.util.concurrent.Executors.newSingleThreadExecutor();
     private final java.util.concurrent.ConcurrentHashMap<String,LibraryCover> libraryCovers=
         new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Set<String> allowedLibraryUris=
         java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final class LibraryCover {
-        final Uri uri; final String name; final long size,modified;
-        LibraryCover(Uri uri,String name,long size,long modified){
-            this.uri=uri;this.name=name;this.size=size;this.modified=modified;
+        final Uri uri; final String name; final long size,modified; final boolean folder;
+        LibraryCover(Uri uri,String name,long size,long modified,boolean folder){
+            this.uri=uri;this.name=name;this.size=size;this.modified=modified;this.folder=folder;
         }
     }
 ''')
@@ -36,8 +38,17 @@ once('''                    String assetPath=u.getPath();
                         if(ref==null)return new WebResourceResponse("image/jpeg",null,
                             new ByteArrayInputStream(new byte[0]));
                         try{
+                            ReaderLibrary.CoverCandidate first=ref.folder?
+                                ReaderLibrary.firstCover(MainActivity.this,ref.uri):null;
+                            if(ref.folder&&first==null)
+                                throw new java.io.IOException("No supported first book or image");
+                            Uri coverSource=ref.folder?first.uri:ref.uri;
+                            String coverName=ref.folder?first.name:ref.name;
+                            long coverSize=ref.folder?first.size:ref.size;
+                            long coverModified=ref.folder?first.modified:ref.modified;
                             return new WebResourceResponse("image/jpeg",null,
-                                ReaderCovers.open(MainActivity.this,ref.uri,ref.name,ref.size,ref.modified));
+                                ReaderCovers.open(MainActivity.this,coverSource,
+                                    coverName,coverSize,coverModified));
                         }catch(Exception ignored){
                             return new WebResourceResponse("image/jpeg",null,
                                 new ByteArrayInputStream(new byte[0]));
@@ -46,8 +57,9 @@ once('''                    String assetPath=u.getPath();
                     if(assetPath!=null&&imageStreamToken!=null&&''')
 once('''        if (requestCode == REQ_OPEN) {''','''        if(requestCode==REQ_LIBRARY_TREE){
             try{
-                getContentResolver().takePersistableUriPermission(
-                    uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                int granted=Intent.FLAG_GRANT_READ_URI_PERMISSION|
+                    (data==null?0:(data.getFlags()&Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+                getContentResolver().takePersistableUriPermission(uri,granted);
                 libraryTree=uri;
                 getSharedPreferences("library",MODE_PRIVATE).edit()
                     .putString("tree",uri.toString()).apply();
@@ -73,6 +85,7 @@ once('''        if (requestCode == REQ_OPEN) {''','''        if(requestCode==REQ
 once('''    private void openUri(Uri uri) {''','''    private void selectLibraryFolder(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION|
             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent,REQ_LIBRARY_TREE);
     }
@@ -96,21 +109,50 @@ once('''    private void openUri(Uri uri) {''','''    private void selectLibrary
         final Uri root=libraryTree;
         if(root==null){runOnUiThread(()->
             js("window.FileGestionerLibrary?.missingCollection()"));return;}
-        io.execute(()->{
+        // Do not queue a document open behind a slow Round Sync cloud query.
+        collectionIo.execute(()->{
             try{
+                long started=android.os.SystemClock.elapsedRealtime();
                 ReaderLibrary.Listing listing=ReaderLibrary.list(this,root,folder);
+                android.util.Log.i("FG_PERF","COLLECTION_LIST_ms="+
+                    (android.os.SystemClock.elapsedRealtime()-started)+
+                    " items="+listing.items.length());
                 libraryCovers.clear();allowedLibraryUris.clear();
                 org.json.JSONArray items=listing.items;
                 for(int i=0;i<items.length();i++){
                     org.json.JSONObject item=items.getJSONObject(i);
-                    if(item.optBoolean("folder"))continue;
+                    // Folder covers resolved only when their thumbnails are requested.
                     String id=java.util.UUID.randomUUID().toString().replace("-","");
                     Uri file=Uri.parse(item.getString("uri"));
                     allowedLibraryUris.add(file.toString());
                     libraryCovers.put(id,new LibraryCover(
                         file,item.optString("name"),item.optLong("size",-1),
-                        item.optLong("modified",0)));
-                    item.put("cover","https://fg-assets.invalid/cover/"+id);
+                        item.optLong("modified",0),item.optBoolean("folder")));
+                    // Prevent background downloads of cloud archives for thumbnails.
+                    String coverName=item.optBoolean("folder")?
+                        "folder-cover.jpg":item.optString("name");
+                    // WebView lazy-loads only on-screen covers. Cloud archive
+                    // requests now scan a bounded ZIP prefix, never spool whole
+                    // remote books. Cached complete books are served locally.
+                    String lower=coverName.toLowerCase(java.util.Locale.ROOT);
+                    boolean safeCover=item.optBoolean("folder")||
+                        lower.endsWith(".epub")||lower.endsWith(".cbz")||
+                        lower.endsWith(".zip")||lower.endsWith(".pdf")||
+                        lower.endsWith(".jpg")||lower.endsWith(".jpeg")||
+                        lower.endsWith(".png")||lower.endsWith(".webp");
+                    if(safeCover){
+                        item.put("cover","https://fg-assets.invalid/cover/"+id);
+                        // Remote folders and compressed books require network
+                        // transfers: only fetch covers after an explicit tap.
+                        boolean cloud="de.felixnuesse.extract.vcp".equals(file.getAuthority());
+                        boolean knownCached=ReaderCovers.hasCached(MainActivity.this,file,
+                            item.optLong("size",-1),item.optLong("modified",0))||
+                            RemoteBookSpool.hasCompleted(MainActivity.this,file,
+                                item.optLong("size",-1));
+                        // No network thumbnail requests during any cloud listing.
+                        // Even a JPEG/PDF may be several megabytes on TeraBox.
+                        item.put("remoteCover",cloud&&!knownCached);
+                    }
                 }
                 String json=new org.json.JSONObject()
                     .put("folder",listing.folder).put("items",items).toString();
@@ -132,7 +174,7 @@ once('''                    imageStreamToken=java.util.UUID.randomUUID().toStrin
                     remember(uri,name,currentMime);
                     String url="https://fg-assets.invalid/raw/"+imageStreamToken+"/image";
                     String payload="{\\"type\\":\\"image\\",\\"name\\":"+q(name)+''','''                    imageStreamToken=java.util.UUID.randomUUID().toString();
-                    boolean character="png".equals(quickType)&&KoikatsuCards.isCharacterCard(this,uri);
+                    boolean character=false; // Nonblocking: show image before validating Koikatsu payload
                     remember(uri,name,currentMime);
                     String url="https://fg-assets.invalid/raw/"+imageStreamToken+"/image";
                     String payload="{\\"type\\":\\"image\\",\\"name\\":"+q(name)+

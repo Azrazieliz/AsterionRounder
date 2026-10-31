@@ -48,6 +48,10 @@ public final class BookArchive implements Closeable {
     }
 
     public BookArchive(Context ctx,Uri source,boolean epub) throws Exception {
+        this(ctx,source,epub,null);
+    }
+    public BookArchive(Context ctx,Uri source,boolean epub,
+                       RemoteBookSpool.PreviewListener preview) throws Exception {
         context=ctx.getApplicationContext();
         uri=source;
         token=UUID.randomUUID().toString();
@@ -56,10 +60,19 @@ public final class BookArchive implements Closeable {
         SeekableZip opened=null;
         ParcelFileDescriptor spoolHandle=null;
         try {
+            long providerStart=android.os.SystemClock.elapsedRealtime();
             handle=context.getContentResolver().openFileDescriptor(uri,"r");
+            android.util.Log.i("FG_PERF","SAF_OPEN_ms="+
+                (android.os.SystemClock.elapsedRealtime()-providerStart)+
+                " authority="+uri.getAuthority());
             if(handle==null)throw new IOException("Cannot read this document provider");
+            android.util.Log.i("FG_PERF","SIZE_QUERY_BEGIN");
+            long sizeStart=android.os.SystemClock.elapsedRealtime();
             long advertised=providerLength();
+            android.util.Log.i("FG_PERF","SIZE_QUERY_ms="+
+                (android.os.SystemClock.elapsedRealtime()-sizeStart));
             long physical=handle.getStatSize();
+            android.util.Log.i("FG_PERF","FD_STAT_DONE");
             // A cloud provider can publish the intended size while still
             // downloading the file. Do not treat its partial local payload as
             // a valid permanent source or blindly copy it again.
@@ -71,29 +84,23 @@ public final class BookArchive implements Closeable {
                 // Read ZIP central directory directly from the SAF descriptor.
                 // Unlike ZipFile("/proc/self/fd/NN"), this does not reopen
                 // provider-owned FDs and does not download/copy them a second time.
+                long indexStart=android.os.SystemClock.elapsedRealtime();
+                android.util.Log.i("FG_PERF","ZIP_INDEX_BEGIN");
                 opened=new SeekableZip(handle);
+                android.util.Log.i("FG_PERF","ZIP_INDEX_ms="+
+                    (android.os.SystemClock.elapsedRealtime()-indexStart));
             } catch(IOException indexError) {
                 boolean seekable;
                 try{Os.lseek(handle.getFileDescriptor(),0L,OsConstants.SEEK_CUR);seekable=true;}
                 catch(Exception notSeekable){seekable=false;}
                 if(seekable)throw new IOException(
                     "Unable to read ZIP index directly. The archive may be incomplete or damaged.",indexError);
-                // Only pipe-only sources require ONE persistent disk spool.
-                File dir=new File(context.getCacheDir(),"reading");
-                if(!dir.exists()&&!dir.mkdirs())throw new IOException("Cannot create temporary reading cache");
-                temp=File.createTempFile("book-",".zip",dir);
-                long copied=0L;
-                try(InputStream input=context.getContentResolver().openInputStream(uri);
-                    OutputStream output=new BufferedOutputStream(new FileOutputStream(temp),128*1024)){
-                    if(input==null)throw new IOException("The cloud provider has no readable stream");
-                    byte[] buffer=new byte[128*1024];int n;
-                    while((n=input.read(buffer))!=-1){
-                        output.write(buffer,0,n);copied+=n;
-                    }
-                }
-                if(advertised>0&&copied!=advertised)
-                    throw new IOException("Cloud transfer incomplete: received "+copied+" / "+advertised+" bytes.");
-                spoolHandle=ParcelFileDescriptor.open(temp,ParcelFileDescriptor.MODE_READ_ONLY);
+                // A pipe-only cloud source requires a disk copy for ZIP random
+                // access. Share one completed copy across readers and prevent
+                // concurrent downloads of the same cloud book.
+                File completed=RemoteBookSpool.obtain(context,uri,advertised,preview);
+                spoolHandle=ParcelFileDescriptor.open(completed,
+                    ParcelFileDescriptor.MODE_READ_ONLY);
                 opened=new SeekableZip(spoolHandle);
             }
             zip=opened;
@@ -108,7 +115,7 @@ public final class BookArchive implements Closeable {
                 String name=entry.getName();
                 if(!entry.isDirectory()){
                     archiveAll.add(name);
-                    if(isImage(name))archiveImages.add(name);
+                    if(isReadablePage(name))archiveImages.add(name);
                 }
             }
             // Comic reading order is 1, 2, 3 ... 10, NOT 1, 10, 2.
@@ -275,6 +282,15 @@ public final class BookArchive implements Closeable {
         if(index<0||index>=archiveImages.size())throw new IOException("Image index invalid");
         return assetUrl(archiveImages.get(index));
     }
+    /** ZIP metadata and Finder sidecar images must never become comic pages. */
+    private static boolean isReadablePage(String name){
+        if(!isImage(name))return false;
+        for(String segment:name.replace('\\','/').split("/")){
+            if(segment.startsWith(".")||segment.equalsIgnoreCase("__MACOSX")||
+               segment.equalsIgnoreCase("Thumbs.db"))return false;
+        }
+        return true;
+    }
     private static boolean isImage(String name){
         String lower=name.toLowerCase(Locale.ROOT);
         return lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".png")||
@@ -373,6 +389,7 @@ public final class BookArchive implements Closeable {
         Element root=packageDoc.getDocumentElement();
         bookTitle=contents(root,"title");author=contents(root,"creator");
         String navPath=null;
+        String ncxPath=null;
         Map<String,String> navTitles=new LinkedHashMap<>();
         Map<String,String> byId=new LinkedHashMap<>();
         Map<String,String> display=new LinkedHashMap<>();
@@ -386,6 +403,8 @@ public final class BookArchive implements Closeable {
                 byId.put(id,name);display.put(id,href);
                 String properties=field(item,"properties");
                 if(Arrays.asList(properties.split("\\s+")).contains("nav"))navPath=name;
+                if("application/x-dtbncx+xml".equalsIgnoreCase(field(item,"media-type")))
+                    ncxPath=name;
                 if(Arrays.asList(properties.split("\\s+")).contains("cover-image")
                    &&isRaster(name))preferredCoverName=name;
             }
@@ -416,16 +435,39 @@ public final class BookArchive implements Closeable {
                 }
             }catch(Exception ignored){/* A missing/invalid NAV must not erase valid reading spine */ }
         }
+        // EPUB2 titles live in toc.ncx, not an EPUB3 NAV document.
+        // Resolve NCX content targets relative to the NCX itself and strip
+        // fragment identifiers. A broken NCX must never hide a valid spine.
+        if(ncxPath!=null && navTitles.isEmpty()){
+            try{
+                org.w3c.dom.Document ncx=document(readSmall(ncxPath,MAX_METADATA_BYTES));
+                NodeList points=ncx.getElementsByTagNameNS("*","navPoint");
+                for(int i=0;i<points.getLength();i++){
+                    Element point=element(points.item(i));
+                    Element label=null,target=null;
+                    for(Node child=point.getFirstChild();child!=null;child=child.getNextSibling()){
+                        Element e=element(child);
+                        if(e==null)continue;
+                        String local=e.getLocalName();
+                        if("navLabel".equals(local))label=e;
+                        else if("content".equals(local))target=e;
+                    }
+                    if(label==null||target==null)continue;
+                    NodeList textNodes=label.getElementsByTagNameNS("*","text");
+                    String title=textNodes.getLength()>0?
+                        textNodes.item(0).getTextContent().trim():"";
+                    String resolved=normalPath(ncxPath,field(target,"src"));
+                    if(!title.isBlank()&&title.length()<220&&!resolved.isBlank())
+                        navTitles.putIfAbsent(resolved,title);
+                }
+            }catch(Exception ignored){/* preserve spine even with malformed NCX */}
+        }
         NodeList spine=packageDoc.getElementsByTagNameNS("*","itemref");
         for(int i=0;i<spine.getLength();i++){
             Element item=element(spine.item(i));
             String id=field(item,"idref"),name=byId.get(id);
             if(name==null||!name.toLowerCase(Locale.ROOT).matches(".*\\.x?html?$"))continue;
-            String title=display.getOrDefault(id,"Chapter "+(chapters.size()+1));
-            title=title.substring(title.lastIndexOf('/')+1).replaceAll("(?i)\\.x?html?$","")
-                .replace('_',' ').replaceAll("^[0-9]+[._ -]*","").trim();
-            if(title.isBlank())title="Chapter "+(chapters.size()+1);
-            title=navTitles.getOrDefault(name,title);
+            String title=navTitles.getOrDefault(name,"Chapter "+(chapters.size()+1));
             chapters.add(new Chapter(name,title));
         }
         if(chapters.isEmpty())throw new IOException("EPUB contains no readable spine chapters");

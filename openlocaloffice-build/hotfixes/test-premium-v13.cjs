@@ -26,8 +26,10 @@ need(lib.includes('PAGE_SIZE=500'),'Bounded collection directory paging');
 need(cover.includes('new Semaphore(2)'),'Only two cover decoders concurrently');
 need(cover.includes('BitmapFactory.Options')&&cover.includes('inSampleSize'),
      'Book covers must sample down to thumbnail dimensions');
-need(cover.includes('isArchive(name)&&size>64L*1024*1024&&!seekable'),
-     'Do not double-copy remote 2 GB archives for thumbnail');
+need(cover.includes('isArchive(name)&&size>64L*1024*1024&&')&&
+     cover.includes('!isExpensiveCloudCover(source,name)&&!seekable')&&
+     cover.includes('final long limit=4L*1024*1024'),
+     'Cloud archive cover requests must be bounded, never spool full 2 GB books');
 need(main.includes('openLibraryFile(String value)'),'Book cover must open original URI');
 need(main.includes('allowedLibraryUris.contains(value)'),'Only approved library items may open');
 need(main.includes('ReaderCovers.open('),'Actual illustration covers must be served offline');
