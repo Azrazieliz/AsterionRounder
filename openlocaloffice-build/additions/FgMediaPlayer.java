@@ -217,15 +217,10 @@ public final class FgMediaPlayer implements AutoCloseable {
                 }else showMessage("Unable to decode or play this file: "+error.getMessage());
             }
         });
-        // Round Sync's remote SAF documents generally expose a sequential
-        // pipe; its random seeks can hang while opening large MP4s. Start
-        // one progressive local stream immediately for that provider rather
-        // than waiting for the seek attempt to time out.
-        if("de.felixnuesse.extract.vcp".equals(original.getAuthority())){
-            fallbackStarted=true;
-            Log.i("FG_MEDIA","REMOTE_PIPE_PROGRESSIVE "+filename);
-            copyThenPlay();
-        }else if(teraboxDirect)playTeraboxRanges();
+        // TeraBox supports seekable native ranges. Other selected Android
+        // documents use their granted file URI; progressive fallback is
+        // activated only if the media decoder reports an actual failure.
+        if(teraboxDirect)playTeraboxRanges();
         else play(original);
     }
     private void playTeraboxRanges(){
