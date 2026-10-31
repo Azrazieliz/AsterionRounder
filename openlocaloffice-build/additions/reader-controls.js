@@ -248,7 +248,15 @@ function renderImageFolder(data){
  }
  function appendBatch(){
    if(!host.isConnected){imageObserver?.disconnect();batchObserver?.disconnect();return;}
-   if(busy||index>=pages.length)return;
+   if(busy)return;
+   if(index>=pages.length){
+     // Request another bounded native page batch only when the user is
+     // approaching the end of the currently materialized reader.
+     if(!finished && sentinel.getBoundingClientRect().top<
+        view.getBoundingClientRect().bottom+view.clientHeight*.4)
+       window.FileGestionerLibrary?.imageReaderDemand?.();
+     return;
+   }
    busy=true;
    const frag=document.createDocumentFragment();
    const end=Math.min(pages.length,index+8);
