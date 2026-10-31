@@ -278,7 +278,7 @@ s=s.replace(anchor,'''        @JavascriptInterface public void selectImageCollec
             if(local!=null&&"content".equals(local.getScheme())){
                 final Uri selectedUri=local;
                 io.execute(()->{
-                    boolean verified=KoikatsuCards.isCharacterCard(this,selectedUri);
+                    boolean verified=KoikatsuCards.isCharacterCard(MainActivity.this,selectedUri);
                     fgVerifiedKoikatsuCard=verified?selectedUri:null;
                     final boolean ok=verified;
                     runOnUiThread(()->js("window.FileGestionerFolder?.koikatsuCard("+ok+")"));
