@@ -133,32 +133,55 @@ public final class FgMediaPlayer implements AutoCloseable {
                     gestureRow.setLayoutParams(params);
                 }
             });
-            // Actual playlist navigation, not decorative buttons. Keep the
-            // controls above the media surface without covering the seek bar.
-            LinearLayout playlist=new LinearLayout(activity);
-            playlist.setOrientation(LinearLayout.HORIZONTAL);
-            playlist.setGravity(Gravity.CENTER);
-            playlist.setPadding(6,4,6,4);
-            playlist.setBackgroundColor(0xaa101725);
-            Button prev=new Button(activity);prev.setText("Previous");
-            Button next=new Button(activity);next.setText("Next");
-            Button random=new Button(activity);random.setText("Random");
+            // Compact controls share Media3's playback overlay, not a separate
+            // full-width top bar. These are wired to the folder playlist.
+            final int buttonSize=(int)(48*activity.getResources().getDisplayMetrics().density);
+            final int separation=(int)(94*activity.getResources().getDisplayMetrics().density);
+            final android.widget.ImageButton prev=new android.widget.ImageButton(activity);
+            final android.widget.ImageButton next=new android.widget.ImageButton(activity);
+            prev.setImageResource(android.R.drawable.ic_media_previous);
+            next.setImageResource(android.R.drawable.ic_media_next);
             prev.setContentDescription("Previous video in this folder");
             next.setContentDescription("Next video in this folder");
-            random.setContentDescription("Play a random video in this folder");
+            for(android.widget.ImageButton control:new android.widget.ImageButton[]{prev,next}){
+                control.setColorFilter(android.graphics.Color.WHITE);
+                android.graphics.drawable.GradientDrawable background=
+                    new android.graphics.drawable.GradientDrawable();
+                background.setColor(0xbb111723);
+                background.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                control.setBackground(background);
+                FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
+                    buttonSize,buttonSize,Gravity.CENTER);
+                root.addView(control,params);
+            }
+            prev.setTranslationX(-separation);
+            next.setTranslationX(separation);
             prev.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(-1,false);});
             next.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(1,false);});
+            final TextView random=new TextView(activity);
+            random.setText("⤨");
+            random.setTextColor(android.graphics.Color.WHITE);
+            random.setTextSize(25);
+            random.setGravity(Gravity.CENTER);
+            random.setContentDescription("Random video in this folder");
+            android.graphics.drawable.GradientDrawable randomBackground=
+                new android.graphics.drawable.GradientDrawable();
+            randomBackground.setColor(0xbb111723);
+            randomBackground.setCornerRadius(buttonSize/2f);
+            random.setBackground(randomBackground);
             random.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(0,true);});
-            for(Button item:new Button[]{prev,next,random}){
-                item.setAllCaps(false);item.setTextSize(12);item.setMinWidth(0);
-                item.setMinHeight(0);item.setMinimumHeight(0);
-                item.setPadding(2,0,2,0);
-                playlist.addView(item,new LinearLayout.LayoutParams(0,-2,1f));
-            }
-            FrameLayout.LayoutParams playlistPos=new FrameLayout.LayoutParams(
-                -1,(int)(42*activity.getResources().getDisplayMetrics().density),
-                Gravity.TOP|Gravity.CENTER_HORIZONTAL);
-            root.addView(playlist,playlistPos);
+            FrameLayout.LayoutParams randomParams=new FrameLayout.LayoutParams(
+                buttonSize,buttonSize,Gravity.RIGHT|Gravity.BOTTOM);
+            randomParams.rightMargin=(int)(20*activity.getResources().getDisplayMetrics().density);
+            randomParams.bottomMargin=(int)(76*activity.getResources().getDisplayMetrics().density);
+            root.addView(random,randomParams);
+            display.setControllerVisibilityListener(
+                (PlayerView.ControllerVisibilityListener) visibility->{
+                    int show=visibility==View.VISIBLE?View.VISIBLE:View.GONE;
+                    prev.setVisibility(show);
+                    next.setVisibility(show);
+                    random.setVisibility(show);
+                });
             enterVideoFullscreen();
         }
         status=new TextView(activity);

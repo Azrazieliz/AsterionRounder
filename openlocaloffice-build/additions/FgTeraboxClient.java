@@ -195,12 +195,74 @@ public final class FgTeraboxClient {
         path=safePath(path);
         Link cached=linkCache.get(path);
         long now=android.os.SystemClock.elapsedRealtime();
-        if(cached!=null&&now-cached.timestamp<12000)return cached.url;
+        if(cached!=null&&now-cached.timestamp<180000)return cached.url;
         String link=fileDetails(path).optString("dlink","");
         if(!link.startsWith("https://"))
             throw new IOException("TeraBox has not supplied an HTTPS file stream");
         linkCache.put(path,new Link(link,now));
         return link;
+    }
+    /**
+     * Open a single persistent HTTPS byte-range response for sequential media
+     * decoding. A seek creates a new response, but ordinary reads reuse the
+     * existing connection instead of making one HTTP request per 512 KiB.
+     * Never downloads, caches or exposes a complete movie.
+     */
+    public InputStream openRangeStream(String path,long offset) throws Exception {
+        if(offset<0)throw new IllegalArgumentException("Negative media offset");
+        String safe=safePath(path);
+        for(int attempt=0;attempt<2;attempt++){
+            URL url=new URL(liveLink(safe));
+            for(int redirect=0;redirect<7;redirect++){
+                if(!"https".equalsIgnoreCase(url.getProtocol()))
+                    throw new IOException("Insecure TeraBox media redirect");
+                HttpURLConnection c=(HttpURLConnection)url.openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(9000);
+                c.setReadTimeout(35000);
+                c.setRequestProperty("User-Agent",
+                    "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36");
+                c.setRequestProperty("Referer","https://www.terabox.com/");
+                c.setRequestProperty("Range","bytes="+offset+"-");
+                c.setRequestProperty("Accept-Encoding","identity");
+                String host=url.getHost().toLowerCase(Locale.ROOT);
+                if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
+                   host.equals("dubox.com")||host.endsWith(".dubox.com")||
+                   host.equals("freeterabox.com")||host.endsWith(".freeterabox.com"))
+                    c.setRequestProperty("Cookie",cookie());
+                try{
+                    int status=c.getResponseCode();
+                    if(status>=300&&status<400){
+                        String location=c.getHeaderField("Location");
+                        if(location==null||location.isEmpty())
+                            throw new IOException("Missing cloud media redirect");
+                        url=new URL(url,location);
+                        c.disconnect();
+                        continue;
+                    }
+                    if((status==401||status==403)&&attempt==0){
+                        synchronized(linkCache){linkCache.remove(safe);}
+                        c.disconnect();
+                        break;
+                    }
+                    if(status!=206&&!(status==200&&offset==0))
+                        throw new IOException("TeraBox media range HTTP "+status);
+                    if(status==206){
+                        String contentRange=c.getHeaderField("Content-Range");
+                        if(contentRange==null||!contentRange.startsWith("bytes "+offset+"-"))
+                            throw new IOException("Cloud media byte-range mismatch");
+                    }
+                    final InputStream response=c.getInputStream();
+                    final HttpURLConnection live=c;
+                    return new FilterInputStream(response){
+                        @Override public void close() throws IOException {
+                            try{super.close();}finally{live.disconnect();}
+                        }
+                    };
+                }catch(Exception error){c.disconnect();throw error;}
+            }
+        }
+        throw new IOException("TeraBox media stream authorization unavailable");
     }
     /**
      * Read exactly a bounded region of a TeraBox file, without a whole-file
