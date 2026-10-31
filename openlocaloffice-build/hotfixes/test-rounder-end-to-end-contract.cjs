@@ -18,8 +18,23 @@ assert.match(archive,/im\.loading='eager'/,
 assert.match(book,/requested\.size>=2/, 'EPUB must not queue hundreds of chapter streams');
 assert.match(book,/EPUB_CHAPTER_RENDERED/, 'EPUB must report actual visible chapter content');
 assert.match(media,/teraboxDirect\)playTeraboxRanges/, 'Cloud video stays on seekable streaming path');
-assert.match(media,/playlistPos=new FrameLayout\.LayoutParams/, 'Playlist navigation must be visible');
+assert.match(media,/PlayerView.ControllerVisibilityListener/,
+  'Overlay navigation follows Media3 playback controls rather than a full-width bar');
+assert.match(media,/mediaNavigator.navigate\(-1,false\)/,
+  'Previous video is wired to playlist navigation');
+assert.match(media,/mediaNavigator.navigate\(1,false\)/,
+  'Next video is wired to playlist navigation');
+assert.match(media,/mediaNavigator.navigate\(0,true\)/,
+  'Shuffle is wired to playlist navigation');
+assert.doesNotMatch(media,/playlistPos=new FrameLayout\.LayoutParams/,
+  'Legacy fullscreen previous next random text bar must not return');
 assert.match(cloud,/public byte\[\] readRange/, 'Cloud files retain byte-range access');
+assert.match(cloud,/public InputStream openRangeStream/, 'Video streaming must use one HTTP response per seek');
+const data=fs.readFileSync('app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java','utf8');
+assert.match(data,/stream=cloud.openRangeStream\(cloudPath,position\)/,
+  'Media player must avoid per-512-KiB HTTPS requests');
+assert.doesNotMatch(data,/buffer=cloud.readRange/,
+  'Media player must not reconnect on every buffered chunk');
 for(const name of ['reader-controls.js','universal-reader.js','epub-reader.js']){
   new (require('vm').Script)(fs.readFileSync('app/src/main/assets/'+name,'utf8'),{filename:name});
 }

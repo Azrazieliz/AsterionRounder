@@ -382,7 +382,7 @@ jobs:
       - name: Upload debug APK as GitHub Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Asterion-Rounder-v0.15.2-debug-APK
+          name: Asterion-Rounder-v0.15.3-debug-APK
           path: openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
@@ -397,11 +397,11 @@ jobs:
           set -euo pipefail
           apk="openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
-          tag="asterion-rounder-v0.15.2-debug-${{ github.run_number }}"
-          gh release create "$tag" "$apk#Asterion-Rounder-v0.15.2-debug.apk" \
+          tag="asterion-rounder-v0.15.3-debug-${{ github.run_number }}"
+          gh release create "$tag" "$apk#Asterion-Rounder-v0.15.3-debug.apk" \
             --repo "${{ github.repository }}" \
             --target "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --title "Asterion Rounder v0.15.2 DEBUG (test only)" \
+            --title "Asterion Rounder v0.15.3 DEBUG (test only)" \
             --notes "User-requested experimental debug APK. The debug certificate differs from the installed production certificate, so Android may refuse an in-place update. Installing this debug APK may require uninstalling Rounder and will erase its local app data. This is not a production release and its reader fixes are not guaranteed." \
             --prerelease
 
