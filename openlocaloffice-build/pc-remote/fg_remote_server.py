@@ -198,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(encoded,str) or len(encoded)>24*1024*1024:
                     raise RuntimeError("Studio supplied no valid encoded frame")
                 raw=base64.b64decode(encoded,validate=True)
-                if not raw.startswith(b"\x5cx89PNG\x5cr\x5cn\x5cx1a\x5cn"):
+                if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
                     raise RuntimeError("Studio returned an invalid PNG frame")
                 if len(raw)<200 or len(raw)>16*1024*1024:
                     raise RuntimeError("Studio frame size out of bounds")
