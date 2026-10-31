@@ -33,11 +33,11 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
     private volatile String fgTbSelectedPath=null;
     // Stateless, stable cover URLs prevent hundreds of thousands of duplicated
     // native map entries and let the WebView reuse existing cached thumbnails.
-    private static String fgTbCoverId(String path){
+    private static String fgTbCoverId(String path,int page){
         return android.util.Base64.encodeToString(
             path.getBytes(java.nio.charset.StandardCharsets.UTF_8),
             android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
-            android.util.Base64.NO_PADDING);
+            android.util.Base64.NO_PADDING)+"."+page;
     }
 
     private void listTeraboxNative(String folder){
@@ -84,7 +84,7 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
                             if(!mapped.optBoolean("folder")&&
                                com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))){
                                 mapped.put("cover","https://fg-assets.invalid/tb-cover/"+
-                                    fgTbCoverId(path));
+                                    fgTbCoverId(path,page));
                                 mapped.put("remoteCover",true);
                             }
                             batch.put(mapped);
@@ -203,11 +203,18 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
         if(id==null||id.length()>8192)return new WebResourceResponse("image/jpeg",null,
             new ByteArrayInputStream(new byte[0]));
         try{
-            String path=new String(android.util.Base64.decode(id,
+            int split=id.lastIndexOf('.');
+            if(split<1)throw new IOException("Missing thumbnail page");
+            int page=Integer.parseInt(id.substring(split+1));
+            if(page<1||page>10000)throw new IOException("Invalid thumbnail page");
+            String path=new String(android.util.Base64.decode(id.substring(0,split),
                 android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
                 android.util.Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8);
             if(!path.startsWith("/"))throw new IOException("Invalid cloud cover path");
-            return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));
+            int slash=path.lastIndexOf('/');
+            String folder=path.substring(0,slash);
+            return new WebResourceResponse("image/jpeg",null,
+                tb().openThumbnail(path,folder,page));
         }
         catch(Exception problem){
             android.util.Log.w("FG_TERA","Thumbnail error: "+
