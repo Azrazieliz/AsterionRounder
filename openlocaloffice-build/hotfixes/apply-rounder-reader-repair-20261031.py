@@ -177,9 +177,11 @@ j=reader.read_text()
 # Native appendImageCollectionChunk and appendTeraboxImageCollectionChunk
 # deliver a JSON ARRAY. Earlier UI silently discarded both because it
 # expected {pages:[...]}, so every folder stopped at the first image.
-assert "append:payload=>add(payload?.pages)" in j
-j=j.replace("append:payload=>add(payload?.pages)",
-            "append:payload=>add(Array.isArray(payload)?payload:payload?.pages)",1)
+old="append:payload=>add(payload?.pages)"
+new="append:payload=>add(Array.isArray(payload)?payload:payload?.pages)"
+assert old in j or new in j
+if old in j:
+    j=j.replace(old,new,1)
 # The base image reader now uses the original stream only.
 # Do not inject the former automatic native fallback URLs here.
 # A JS exception during viewer construction previously left appBusy(true)
@@ -213,12 +215,13 @@ js=root/'assets/premium-library.js'
 t=js.read_text()
 # During ongoing folder enumeration, cloud files do not have a local SAF
 # URI. Deduplication must use path, not undefined URI for every item.
-assert 'new Set(state.siblings.map(e=>e.uri))' in t
-assert 'known.has(entry.uri)' in t
-t=t.replace('new Set(state.siblings.map(e=>e.uri))',
-            'new Set(state.siblings.map(e=>e.path||e.uri))',1)
-t=t.replace('known.has(entry.uri)','known.has(entry.path||entry.uri)',1)
-t=t.replace('known.add(entry.uri)','known.add(entry.path||entry.uri)',1)
+old='new Set(state.siblings.map(e=>e.uri))'
+new='new Set(state.siblings.map(e=>e.path||e.uri))'
+assert old in t or new in t
+if old in t:
+    t=t.replace(old,new,1)
+    t=t.replace('known.has(entry.uri)','known.has(entry.path||entry.uri)',1)
+    t=t.replace('known.add(entry.uri)','known.add(entry.path||entry.uri)',1)
 anchor=''' activeUri=item.uri;
  root.classList.add('fg-lib-hidden');'''
 assert t.count(anchor)==1
