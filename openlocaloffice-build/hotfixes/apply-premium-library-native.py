@@ -109,7 +109,7 @@ once('''    private void openUri(Uri uri) {''','''    private void selectLibrary
         final Uri root=libraryTree;
         if(root==null){runOnUiThread(()->
             js("window.FileGestionerLibrary?.missingCollection()"));return;}
-        // Do not queue a document open behind a slow Round Sync cloud query.
+        // Do not queue a document open behind a slow file-provider query.
         collectionIo.execute(()->{
             try{
                 long started=android.os.SystemClock.elapsedRealtime();
@@ -144,7 +144,7 @@ once('''    private void openUri(Uri uri) {''','''    private void selectLibrary
                         item.put("cover","https://fg-assets.invalid/cover/"+id);
                         // Remote folders and compressed books require network
                         // transfers: only fetch covers after an explicit tap.
-                        boolean cloud="de.felixnuesse.extract.vcp".equals(file.getAuthority());
+                        boolean cloud=com.openlocal.office.core.FgTeraboxDocumentsProvider.AUTHORITY.equals(file.getAuthority());
                         boolean knownCached=ReaderCovers.hasCached(MainActivity.this,file,
                             item.optLong("size",-1),item.optLong("modified",0))||
                             RemoteBookSpool.hasCompleted(MainActivity.this,file,
