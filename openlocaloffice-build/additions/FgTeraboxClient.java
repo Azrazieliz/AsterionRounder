@@ -67,7 +67,8 @@ public final class FgTeraboxClient {
             Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE,key());
             byte[] ciphertext=cipher.doFinal(token.getBytes(StandardCharsets.UTF_8));
-            prefs.edit().putString("ndus",Base64.encodeToString(ciphertext,Base64.NO_WRAP))
+            prefs.edit().putString("preview_scope",java.util.UUID.randomUUID().toString())
+                .putString("ndus",Base64.encodeToString(ciphertext,Base64.NO_WRAP))
                 .putString("iv",Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP))
                 .apply();
             return true;
@@ -76,7 +77,7 @@ public final class FgTeraboxClient {
             return false;
         }
     }
-    public synchronized void disconnect(){linkCache.clear();thumbUrls.clear();prefs.edit().remove("ndus").remove("iv").apply();}
+    public synchronized void disconnect(){linkCache.clear();thumbUrls.clear();prefs.edit().remove("ndus").remove("iv").remove("preview_scope").apply();}
     public boolean configured(){return prefs.contains("ndus")&&prefs.contains("iv");}
     private String cookie() throws Exception{
         String ciphertext=prefs.getString("ndus",null);
@@ -171,6 +172,7 @@ public final class FgTeraboxClient {
         JSONArray names=new JSONArray();names.put(safePath(path));
         Map<String,String> args=new LinkedHashMap<>();
         args.put("target",names.toString());args.put("dlink","1");
+        args.put("origin","dlna");
         JSONObject result=api("/api/filemetas",args);
         JSONArray info=result.optJSONArray("info");
         if(info==null||info.length()<1)throw new IOException("TeraBox file metadata unavailable");
@@ -193,7 +195,7 @@ public final class FgTeraboxClient {
         path=safePath(path);
         Link cached=linkCache.get(path);
         long now=android.os.SystemClock.elapsedRealtime();
-        if(cached!=null&&now-cached.timestamp<45000)return cached.url;
+        if(cached!=null&&now-cached.timestamp<12000)return cached.url;
         String link=fileDetails(path).optString("dlink","");
         if(!link.startsWith("https://"))
             throw new IOException("TeraBox has not supplied an HTTPS file stream");
@@ -303,32 +305,95 @@ public final class FgTeraboxClient {
      * Read a cloud-provided thumbnail without downloading a full image.
      * Returned stream is closed by the WebResourceResponse consumer.
      */
-    public InputStream openThumbnail(String path) throws Exception{
-        String thumb=thumbUrls.get(safePath(path));
-        if(thumb==null||thumb.isEmpty())throw new IOException("No server thumbnail available");
-        URL target=new URL(thumb);
-        if(!target.getProtocol().equals("https"))
-            throw new IOException("Unsecured thumbnail URL rejected");
-        HttpURLConnection request=(HttpURLConnection)target.openConnection();
-        request.setConnectTimeout(8500);
-        request.setReadTimeout(30000);
-        request.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android) AppleWebKit/537.36");
-        request.setRequestProperty("Referer","https://www.terabox.com/");
-        String host=target.getHost().toLowerCase(Locale.ROOT);
-        if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
-           host.equals("dubox.com")||host.endsWith(".dubox.com"))
-            request.setRequestProperty("Cookie",cookie());
-        int status=request.getResponseCode();
-        if(status<200||status>=300){
-            request.disconnect();
-            throw new IOException("Thumbnail HTTP "+status);
+    private static String cacheId(String value){
+        try{
+            byte[] bytes=java.security.MessageDigest.getInstance("SHA-256").digest(
+                value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out=new StringBuilder();
+            for(byte b:bytes)out.append(String.format(Locale.ROOT,"%02x",b&255));
+            return out.toString();
+        }catch(Exception ex){return Integer.toHexString(value.hashCode());}
+    }
+    private File coverDir() throws IOException{
+        File dir=new File(app.getCacheDir(),"terabox-thumbnails-v3");
+        if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Private thumbnail cache unavailable");
+        return dir;
+    }
+    private void pruneCovers(File dir){
+        File[] files=dir.listFiles((d,name)->name.endsWith(".jpg"));
+        if(files==null||files.length<120)return;
+        Arrays.sort(files,Comparator.comparingLong(File::lastModified).reversed());
+        long total=0;
+        for(int i=0;i<files.length;i++){
+            total+=files[i].length();
+            if(i>=900||total>120L*1024*1024)files[i].delete();
         }
-        InputStream content=request.getInputStream();
-        return new FilterInputStream(content){
-            @Override public void close() throws IOException{
-                try{super.close();}finally{request.disconnect();}
-            }
-        };
+    }
+    /** Persistent, private, size-bounded thumbnails. No full image downloads. */
+    public InputStream openThumbnail(String path) throws Exception{
+        final String safe=safePath(path);
+        String scope=prefs.getString("preview_scope","v1");
+        File dir=coverDir();
+        File cached=new File(dir,cacheId(scope+":"+safe)+".jpg");
+        if(cached.isFile()&&cached.length()>50){
+            cached.setLastModified(System.currentTimeMillis());
+            return new FileInputStream(cached);
+        }
+        String thumb=thumbUrls.get(safe);
+        if(thumb==null||thumb.isEmpty()){
+            JSONObject details=fileDetails(safe);
+            JSONObject urls=details.optJSONObject("thumbs");
+            if(urls!=null)thumb=urls.optString("url3",urls.optString("url2",urls.optString("url1","")));
+        }
+        if(thumb==null||thumb.isEmpty())throw new IOException("No server thumbnail");
+        URL url=new URL(thumb);
+        if(!"https".equalsIgnoreCase(url.getProtocol()))
+            throw new IOException("Insecure thumbnail URL");
+        // TeraBox may redirect thumbnails to a signed CDN.
+        for(int hop=0;hop<6;hop++){
+            HttpURLConnection request=(HttpURLConnection)url.openConnection();
+            request.setInstanceFollowRedirects(false);
+            request.setConnectTimeout(7000);
+            request.setReadTimeout(12000);
+            request.setRequestProperty("User-Agent",
+                "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36");
+            request.setRequestProperty("Referer","https://www.terabox.com/");
+            String host=url.getHost().toLowerCase(Locale.ROOT);
+            if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
+               host.equals("dubox.com")||host.endsWith(".dubox.com"))
+                request.setRequestProperty("Cookie",cookie());
+            try{
+                int response=request.getResponseCode();
+                if(response>=300&&response<400){
+                    String redirect=request.getHeaderField("Location");
+                    if(redirect==null||redirect.isEmpty())throw new IOException("Thumbnail redirect missing");
+                    url=new URL(url,redirect);
+                    if(!"https".equalsIgnoreCase(url.getProtocol()))
+                        throw new IOException("Insecure thumbnail redirect");
+                    continue;
+                }
+                if(response!=200&&response!=206)throw new IOException("Thumbnail HTTP "+response);
+                File tmp=new File(dir,cached.getName()+".part");
+                try(InputStream in=request.getInputStream();
+                    FileOutputStream out=new FileOutputStream(tmp)){
+                    byte[] buffer=new byte[16384];int n;long total=0;
+                    while((n=in.read(buffer))!=-1){
+                        if(n==0)continue;
+                        total+=n;
+                        if(total>3L*1024*1024)throw new IOException("Server thumbnail too large");
+                        out.write(buffer,0,n);
+                    }
+                }catch(Exception ex){tmp.delete();throw ex;}
+                if(tmp.length()<=50){tmp.delete();throw new IOException("Empty server thumbnail");}
+                if(!tmp.renameTo(cached)){
+                    if(!cached.isFile())throw new IOException("Cannot retain private thumbnail");
+                    tmp.delete();
+                }
+                pruneCovers(dir);
+                return new FileInputStream(cached);
+            }finally{request.disconnect();}
+        }
+        throw new IOException("Too many thumbnail redirects");
     }
     public void save(String path,OutputStream output) throws Exception{
         try(InputStream input=open(path)){
