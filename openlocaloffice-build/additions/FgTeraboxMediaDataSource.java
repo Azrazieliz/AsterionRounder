@@ -31,9 +31,11 @@ public final class FgTeraboxMediaDataSource implements DataSource {
         cloud=new FgTeraboxClient(context.getApplicationContext());
     }
     @Override public long open(DataSpec spec)throws IOException {
-        if(closed)throw new IOException("Player stream closed");
         try{
+            // Media3 may reopen the SAME DataSource after seeking. close()
+            // releases only the current response, not the entire instance.
             if(stream!=null){stream.close();stream=null;}
+            closed=false;
             cloudPath=FgTeraboxDocumentsProvider.cloudPath(contentUri);
             position=spec.position;
             remaining=spec.length;

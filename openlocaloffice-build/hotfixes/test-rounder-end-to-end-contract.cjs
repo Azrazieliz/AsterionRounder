@@ -35,6 +35,8 @@ assert.match(data,/stream=cloud.openRangeStream\(cloudPath,position\)/,
   'Media player must avoid per-512-KiB HTTPS requests');
 assert.doesNotMatch(data,/buffer=cloud.readRange/,
   'Media player must not reconnect on every buffered chunk');
+assert.match(data,/closed=false;\s*cloudPath=/,
+  'Reused Media3 DataSource must reopen correctly after seek');
 for(const name of ['reader-controls.js','universal-reader.js','epub-reader.js']){
   new (require('vm').Script)(fs.readFileSync('app/src/main/assets/'+name,'utf8'),{filename:name});
 }
