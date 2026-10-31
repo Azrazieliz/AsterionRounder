@@ -16,37 +16,38 @@ s=s.replace(anchor,'''        @JavascriptInterface public void openTeraboxFile(S
             runOnUiThread(()->openUri(document));
         }
 '''+anchor,1)
-# Cloud covers first use server-provided small thumbnails. For office/archives
-# that lack thumbnails, use the same bounded native ReaderCovers pipeline.
-needle='''        try{return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));}
-        catch(Exception problem){'''
-assert s.count(needle)==1
-s=s.replace(needle,'''        try{return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));}
-        catch(Exception noServerPreview){
+# Try server thumbnails first, then bounded archive-cover extraction.
+# The decoded path remains in scope when a server preview is unavailable.
+needle='''        }catch(Exception problem){
+            android.util.Log.w("FG_TERA","Thumbnail error: "+
+                problem.getClass().getSimpleName());
+            return new WebResourceResponse("image/jpeg",null,
+                new ByteArrayInputStream(new byte[0]));
+        }
+    }
+    private WebResourceResponse fgTbImage('''
+assert s.count(needle)==1, "Expected stateless cloud cover handler"
+s=s.replace(needle,'''        }catch(Exception noServerPreview){
             try{
-                String lower=path.toLowerCase(java.util.Locale.ROOT);
-                if(lower.endsWith(".pdf")||lower.endsWith(".epub")||
-                   lower.endsWith(".cbz")||lower.endsWith(".zip")){
-                    org.json.JSONObject meta=tb().fileDetails(path);
-                    Uri cloud=com.openlocal.office.core.FgTeraboxDocumentsProvider.uriFor(path);
-                    return new WebResourceResponse("image/jpeg",null,
-                        ReaderCovers.open(this,cloud,path,meta.optLong("size",-1),
-                            meta.optLong("server_mtime",0)*1000L));
+                if(path!=null){
+                    String lower=path.toLowerCase(java.util.Locale.ROOT);
+                    if(lower.endsWith(".pdf")||lower.endsWith(".epub")||
+                       lower.endsWith(".cbz")||lower.endsWith(".zip")){
+                        org.json.JSONObject meta=tb().fileDetails(path);
+                        Uri cloud=com.openlocal.office.core.FgTeraboxDocumentsProvider.uriFor(path);
+                        return new WebResourceResponse("image/jpeg",null,
+                            ReaderCovers.open(this,cloud,path,meta.optLong("size",-1),
+                                meta.optLong("server_mtime",0)*1000L));
+                    }
                 }
             }catch(Exception notSeekable){
                 android.util.Log.i("FG_TERA","Cover range access unavailable");
             }
-            // Do not download a whole cloud book just to make a cover.
             return new WebResourceResponse("image/jpeg",null,
                 new ByteArrayInputStream(new byte[0]));
         }
-        /* dead-code guard removed with dedicated preview fallback */ /*
-        catch(Exception problem){''',1)
-# Remove obsolete catch body after replacing with new branch.
-start=s.index('        /* dead-code guard removed with dedicated preview fallback */ /*')
-stop=s.index('    private WebResourceResponse fgTbImage(', start)
-s=s[:start]+'''    }
-'''+s[stop:]
+    }
+    private WebResourceResponse fgTbImage(''',1)
 # Supply thumbnail URLs for all formats the server might preview.
 old='''if(!mapped.optBoolean("folder")&&
                                com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))){'''
@@ -86,49 +87,50 @@ assert j.count(old)==1,("Cloud open anchor changed",j.count(old))
 j=j.replace(old,'''    bridge()?.openTeraboxFile?.(item.path,item.name);''',1)
 # Use efficient first-frame opening for huge image collections:
 # build/sort the sibling index after the viewer is already shown.
-for cloud in (True,False):
-    if cloud:
-        old='''    const siblings=entries.filter(x=>!x.folder&&x.terabox&&classify(x)==='image')
-      .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
-    const version=++imagePumpVersion;
-    imagePumpState={version,siblings,offset:0,started:false,live:scanning,
-      folder:currentFolder,paused:false,feed:null,terabox:true};
-    bridge().beginTeraboxImageCollection(item.path,item.name);'''
-        new='''    const version=++imagePumpVersion;
-    const state={version,siblings:[],offset:0,started:false,live:scanning,
-      folder:currentFolder,paused:false,feed:null,terabox:true,preparing:true};
-    imagePumpState=state;
-    bridge().beginTeraboxImageCollection(item.path,item.name);
-    setTimeout(()=>{
-      if(imagePumpState!==state)return;
-      state.siblings=entries.filter(x=>!x.folder&&x.terabox&&classify(x)==='image')
-        .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
-      state.preparing=false;
-      state.feed?.();
-    },16);'''
-    else:
-        old='''    const siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
-      .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
-    const version=++imagePumpVersion;
-    imagePumpState={version,siblings,offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
-    // Native loads the viewer first. It notifies us after installing the
-    // image-reader callback, so no early Round Sync batch can be lost.
-    bridge().beginImageCollection(item.uri);'''
-        new='''    const version=++imagePumpVersion;
-    const state={version,siblings:[],offset:0,started:false,live:scanning,
-      folder:currentFolder,paused:false,feed:null,preparing:true};
-    imagePumpState=state;
-    bridge().beginImageCollection(item.uri);
-    setTimeout(()=>{
-      if(imagePumpState!==state)return;
-      state.siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
-        .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
-      state.preparing=false;
-      state.feed?.();
-    },16);'''
-    old=align_old(j,old)
-    assert j.count(old)==1, ("Image opening anchor",cloud,j.count(old))
-    j=j.replace(old,new,1)
+# The selected image opens immediately. Rebuild the navigation index after
+# the reader is visible, preserving the incremental Set used by the loader.
+old='''   const siblings=entries.filter(x=>!x.folder&&x.terabox&&classify(x)==='image')
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name));
+   const version=++imagePumpVersion;
+   imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
+     offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null,terabox:true};
+   bridge().beginTeraboxImageCollection(item.path,item.name);'''
+new='''   const version=++imagePumpVersion;
+   const state={version,siblings:[],known:new Set(),offset:0,started:false,
+     live:scanning,folder:currentFolder,paused:false,feed:null,terabox:true,preparing:true};
+   imagePumpState=state;
+   bridge().beginTeraboxImageCollection(item.path,item.name);
+   setTimeout(()=>{
+     if(imagePumpState!==state)return;
+     state.siblings=entries.filter(x=>!x.folder&&x.terabox&&classify(x)==='image')
+       .sort((a,b)=>naturalCollator.compare(a.name,b.name));
+     state.known=new Set(state.siblings.map(x=>x.path||x.uri));
+     state.preparing=false;state.feed?.();
+   },16);'''
+assert j.count(old)==1,("Cloud image opening anchor",j.count(old))
+j=j.replace(old,new,1)
+old='''   const siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name));
+   const version=++imagePumpVersion;
+   imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
+     offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
+   // Native loads the viewer first. It notifies us after installing the
+   // image-reader callback, so no early Round Sync batch can be lost.
+   bridge().beginImageCollection(item.uri);'''
+new='''   const version=++imagePumpVersion;
+   const state={version,siblings:[],known:new Set(),offset:0,started:false,
+     live:scanning,folder:currentFolder,paused:false,feed:null,preparing:true};
+   imagePumpState=state;
+   bridge().beginImageCollection(item.uri);
+   setTimeout(()=>{
+     if(imagePumpState!==state)return;
+     state.siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
+       .sort((a,b)=>naturalCollator.compare(a.name,b.name));
+     state.known=new Set(state.siblings.map(x=>x.path||x.uri));
+     state.preparing=false;state.feed?.();
+   },16);'''
+assert j.count(old)==1,("SAF image opening anchor",j.count(old))
+j=j.replace(old,new,1)
 old='''     if(imagePumpState!==state||imagePumpVersion!==state.version)return;
      if(state.offset>=state.siblings.length){'''
 new='''     if(imagePumpState!==state||imagePumpVersion!==state.version)return;
