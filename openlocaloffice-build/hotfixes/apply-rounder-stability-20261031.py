@@ -66,8 +66,10 @@ main.write_text(s,encoding='utf-8')
 client=base/'java/com/openlocal/office/core/FgTeraboxClient.java'
 c=client.read_text(encoding='utf-8')
 old='new File(app.getCacheDir(),"terabox-thumbnails-v3")'
-assert c.count(old)==1
-c=c.replace(old,'new File(app.getFilesDir(),"terabox-thumbnails-v4")',1)
+new='new File(app.getFilesDir(),"terabox-thumbnails-v4")'
+assert c.count(old)==1 or c.count(new)==1
+if c.count(old)==1:
+    c=c.replace(old,new,1)
 # No credential material is present in filenames, but use separate per-session
 # prefix as was already implemented; do not allow file previews to leak to other apps.
 client.write_text(c,encoding='utf-8')
@@ -75,8 +77,10 @@ client.write_text(c,encoding='utf-8')
 covers=base/'java/com/openlocal/office/core/ReaderCovers.java'
 v=covers.read_text(encoding='utf-8')
 a='new File(ctx.getCacheDir(),"covers-v2")'
-assert v.count(a)==2,("ReaderCovers persistent cache",v.count(a))
-v=v.replace(a,'new File(ctx.getFilesDir(),"covers-v3")')
+new='new File(ctx.getFilesDir(),"covers-v3")'
+assert v.count(a)==2 or v.count(new)==2,("ReaderCovers persistent cache",v.count(a),v.count(new))
+if v.count(a)==2:
+    v=v.replace(a,new)
 old='if(cached.exists()&&cached.length()>0)return new FileInputStream(cached);'
 assert v.count(old)==2
 v=v.replace(old,'''if(cached.exists()&&cached.length()>0){
