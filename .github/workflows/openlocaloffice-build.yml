@@ -134,6 +134,7 @@ jobs:
           python3 ../hotfixes/apply-asterion-device-fixes-20261031.py
           python3 ../hotfixes/apply-asterion-rounder-20261031.py
           python3 ../hotfixes/apply-rounder-stability-20261031.py
+          python3 ../hotfixes/apply-rounder-system-anr-20261031.py
           cp ../additions/FgMediaPlayer.java app/src/main/java/com/openlocal/office/core/FgMediaPlayer.java
           cp ../additions/FgGrowingMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgGrowingMediaDataSource.java
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
@@ -146,6 +147,9 @@ jobs:
           grep -Fq 'freeterabox.com' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
           grep -Fq 'covers-v3' app/src/main/java/com/openlocal/office/core/ReaderCovers.java
           grep -Fq 'terabox-thumbnails-v4' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'android:process=":terabox"' app/src/main/AndroidManifest.xml
+          grep -Fq 'listingWorker.execute' app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
+          grep -Fq 'DocumentsContract.EXTRA_LOADING' app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
           grep -Fq 'Asterion Rounder' app/src/main/assets/premium-library.js
           grep -Fq 'getTeraboxConfigured()' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'AES/GCM/NoPadding' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java

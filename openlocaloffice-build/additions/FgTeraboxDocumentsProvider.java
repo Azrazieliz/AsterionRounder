@@ -16,6 +16,13 @@ import android.provider.DocumentsProvider;
 import android.net.Uri;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -43,6 +50,18 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
     };
     private FgTeraboxClient client;
     private HandlerThread workerThread;
+    private final ExecutorService listingWorker=Executors.newSingleThreadExecutor(r->{
+        Thread t=new Thread(r,"asterion-saf-list");
+        t.setDaemon(true);
+        return t;
+    });
+    private final Object foldersLock=new Object();
+    private final Map<String,ArrayList<JSONObject>> folderRows=new HashMap<>();
+    private final Map<String,JSONObject> knownItems=new HashMap<>();
+    private final Set<String> listingInProgress=new HashSet<>();
+    private final Set<String> listed=new HashSet<>();
+    private static final int SAF_MAX_VISIBLE=450;
+
 
     public static Uri uriFor(String path) {
         if (path == null || !path.startsWith("/")) throw new IllegalArgumentException("Invalid cloud path");
@@ -95,29 +114,80 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         MatrixCursor rows = new MatrixCursor(projection == null ? DOC_COLUMNS : projection);
         try {
             String p = path(documentId);
-            if ("/".equals(p)) addDocument(rows, new JSONObject().put("isdir", 1).put("server_filename", "TeraBox"), "/");
-            else addDocument(rows, client.fileDetails(p), p);
-            return rows;
-        } catch (Exception ex) { throw unavailable(ex); }
-    }
-    @Override public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder)
-            throws java.io.FileNotFoundException {
-        MatrixCursor rows = new MatrixCursor(projection == null ? DOC_COLUMNS : projection);
-        try {
-            String folder = path(parentDocumentId);
-            // Android's picker has no async page-append contract. Bound each binder
-            // response and let the native File Gestioner UI paginate the full folder.
-            for (int page = 1; page <= 30; page++) {
-                JSONArray batch = client.listPage(folder, page);
-                for (int i = 0; i < batch.length(); ++i) {
-                    JSONObject item = batch.optJSONObject(i);
-                    if (item != null && item.optString("path", "").startsWith("/"))
-                        addDocument(rows, item, item.optString("path"));
+            if ("/".equals(p)) {
+                addDocument(rows,new JSONObject().put("isdir",1)
+                    .put("server_filename","TeraBox"),"/");
+            } else {
+                JSONObject item;
+                synchronized(foldersLock) { item=knownItems.get(p); }
+                if(item==null){
+                    // Never synchronously perform a network lookup from the
+                    // system picker or startup Binder transaction.
+                    item=new JSONObject().put("server_filename",
+                        p.substring(p.lastIndexOf('/')+1)).put("path",p);
                 }
-                if (batch.length() < FgTeraboxClient.pageSize()) break;
+                addDocument(rows,item,p);
             }
             return rows;
-        } catch (Exception ex) { throw unavailable(ex); }
+        }catch(Exception ex){throw unavailable(ex);}
+    }
+    @Override public Cursor queryChildDocuments(String parentDocumentId,String[] projection,String sortOrder)
+            throws java.io.FileNotFoundException {
+        MatrixCursor rows=new MatrixCursor(projection==null?DOC_COLUMNS:projection);
+        try{
+            String folder=path(parentDocumentId);
+            ArrayList<JSONObject> snapshot;
+            boolean loading;
+            synchronized(foldersLock){
+                ArrayList<JSONObject> existing=folderRows.get(folder);
+                snapshot=existing==null?new ArrayList<>():new ArrayList<>(existing);
+                loading=!listed.contains(folder);
+                if(loading && listingInProgress.add(folder))
+                    listingWorker.execute(()->fetchChildren(folder));
+            }
+            for(JSONObject item:snapshot){
+                String p=item.optString("path","");
+                if(p.startsWith("/"))addDocument(rows,item,p);
+            }
+            Bundle extras=new Bundle();
+            extras.putBoolean(DocumentsContract.EXTRA_LOADING,loading);
+            rows.setExtras(extras);
+            rows.setNotificationUri(getContext().getContentResolver(),
+                DocumentsContract.buildChildDocumentsUri(AUTHORITY,parentDocumentId));
+            return rows;
+        }catch(Exception ex){throw unavailable(ex);}
+    }
+    private void fetchChildren(String folder){
+        final Uri uri=DocumentsContract.buildChildDocumentsUri(AUTHORITY,"tb:"+folder);
+        try{
+            // The native library offers full pagination. This SAF adapter
+            // deliberately caps a Binder cursor below Android's transaction
+            // limit and never blocks a system thread for network traversal.
+            for(int page=1;page<=5;page++){
+                JSONArray batch=client.listPage(folder,page);
+                synchronized(foldersLock){
+                    ArrayList<JSONObject> rows=folderRows.computeIfAbsent(folder,k->new ArrayList<>());
+                    for(int i=0;i<batch.length() && rows.size()<SAF_MAX_VISIBLE;i++){
+                        JSONObject item=batch.optJSONObject(i);
+                        if(item==null)continue;
+                        String p=item.optString("path","");
+                        if(!p.startsWith("/"))continue;
+                        rows.add(item);
+                        knownItems.put(p,item);
+                    }
+                }
+                getContext().getContentResolver().notifyChange(uri,null);
+                if(batch.length()<FgTeraboxClient.pageSize())break;
+            }
+        }catch(Exception ex){
+            android.util.Log.w("FG_TERA_PROVIDER","Cloud listing deferred: "+ex.getClass().getSimpleName());
+        }finally{
+            synchronized(foldersLock){
+                listingInProgress.remove(folder);
+                listed.add(folder);
+            }
+            getContext().getContentResolver().notifyChange(uri,null);
+        }
     }
     @Override public boolean isChildDocument(String parentDocumentId, String documentId) {
         try {
@@ -126,14 +196,15 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         } catch (IOException ignored) { return false; }
     }
     @Override public String getDocumentType(String documentId) throws java.io.FileNotFoundException {
-        try {
-            String p = path(documentId);
-            if ("/".equals(p)) return DocumentsContract.Document.MIME_TYPE_DIR;
-            JSONObject info = client.fileDetails(p);
-            return info.optInt("isdir", 0) != 0
-                ? DocumentsContract.Document.MIME_TYPE_DIR
-                : FgTeraboxClient.mime(info.optString("server_filename", p));
-        } catch (Exception ex) { throw unavailable(ex); }
+        try{
+            String p=path(documentId);
+            if("/".equals(p))return DocumentsContract.Document.MIME_TYPE_DIR;
+            JSONObject item;
+            synchronized(foldersLock){item=knownItems.get(p);}
+            if(item!=null && item.optInt("isdir",0)!=0)
+                return DocumentsContract.Document.MIME_TYPE_DIR;
+            return FgTeraboxClient.mime(p);
+        }catch(Exception ex){throw unavailable(ex);}
     }
     @Override public ParcelFileDescriptor openDocument(String documentId, String mode, CancellationSignal signal)
             throws java.io.FileNotFoundException {
