@@ -58,7 +58,7 @@ repl=r'''    private final java.util.concurrent.ExecutorService fgDirectoryExecu
                                 low.endsWith(".png")||low.endsWith(".webp");
                             if(image){
                                 item.put("cover","https://fg-assets.invalid/cover/"+id);
-                                boolean cloud="de.felixnuesse.extract.vcp"
+                                boolean cloud=com.openlocal.office.core.FgTeraboxDocumentsProvider.AUTHORITY
                                     .equals(file.getAuthority());
                                 // Avoid thousands of filesystem checks during
                                 // cloud enumeration; remote covers remain
@@ -83,7 +83,7 @@ repl=r'''    private final java.util.concurrent.ExecutorService fgDirectoryExecu
                     break;
                   } catch(ReaderLibrary.PendingDirectoryException pending){
                     if(request!=fgDirectoryVersion.get())return;
-                    android.util.Log.w("FG_FOLDER","ROUND_SYNC_RETRY attempt="+
+                    android.util.Log.w("FG_FOLDER","SAF_LISTING_RETRY attempt="+
                         (attempt+1)+" loading="+pending.loading+
                         " message="+pending.getMessage());
                     if(attempt==2)throw pending;
@@ -91,7 +91,7 @@ repl=r'''    private final java.util.concurrent.ExecutorService fgDirectoryExecu
                     runOnUiThread(()->{
                         if(request==fgDirectoryVersion.get())
                             js("window.FileGestionerLibrary?.loadingStatus("+
-                                q("RoundSync has not returned the folder contents. Retrying "+
+                                q("Storage is still listing this folder. Retrying "+
                                     retry+"/3 without discarding images…")+")");
                     });
                     Thread.sleep(3000L);
