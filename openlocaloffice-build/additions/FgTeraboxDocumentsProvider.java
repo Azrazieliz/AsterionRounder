@@ -233,6 +233,18 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             // Unlike the ordinary picker, the bulk scanner consumes one
             // small Cursor per page; no 450-file hard truncation.
             if(cached==null||stale)queuePage(folder,page,key,cache);
+            // Warm two future metadata pages concurrently to eliminate
+            // per-page round-trip latency without fetching image bytes.
+            if((cached==null||cached.length()==INDEX_PAGE_SIZE)&&page<99997){
+                for(int lookahead=1;lookahead<=2;lookahead++){
+                    int next=page+lookahead;
+                    String nextKey=pageKey(folder,next);
+                    File nextFile=pageFile(nextKey);
+                    if(!nextFile.isFile()||
+                       System.currentTimeMillis()-nextFile.lastModified()>METADATA_FRESH_MS)
+                        queuePage(folder,next,nextKey,nextFile);
+                }
+            }
             if(cached!=null){
                 for(int i=0;i<cached.length();i++){
                     JSONObject item=cached.optJSONObject(i);

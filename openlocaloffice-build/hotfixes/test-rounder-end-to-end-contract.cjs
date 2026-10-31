@@ -40,4 +40,28 @@ assert.match(data,/closed=false;\s*cloudPath=/,
 for(const name of ['reader-controls.js','universal-reader.js','epub-reader.js']){
   new (require('vm').Script)(fs.readFileSync('app/src/main/assets/'+name,'utf8'),{filename:name});
 }
+const pages=fs.readFileSync('app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java','utf8');
+const metadataClient=fs.readFileSync('app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java','utf8');
+const library=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
+const covers=fs.readFileSync('app/src/main/java/com/openlocal/office/core/ReaderCovers.java','utf8');
+assert.match(pages,/queryChildDocuments\(String documentId,String\[\] projection,Bundle args\)/,
+  'Cloud metadata must support bounded paged SAF queries for 100K+ files');
+assert.match(pages,/PAGE_OFFSET="asterion.page.offset"/,
+  'Bulk catalog must be accessible to other Asterion apps using a granted tree');
+assert.match(pages,/terabox-metadata-v1/,
+  'Metadata index must survive process restarts');
+assert.match(pages,/queuePage\(folder,next,nextKey,nextFile\)/,
+  'Cloud metadata pages must prefetch without opening originals');
+assert.match(metadataClient,/getFilesDir\(\),"terabox-thumbnails-v4"/,
+  'Only thumbnail images persist in private application files');
+assert.match(covers,/getFilesDir\(\),"covers-v3"/,
+  'Previously displayed covers must persist in private application files');
+assert.match(library,/const retainedCards=new Map\(\)/,
+  'Re-rendering metadata must not discard already loaded cover IMG nodes');
+assert.match(library,/if\(signature!==lastVisibleKeys\)/,
+  'Unchanged library pages must not be rebuilt while metadata arrives');
+assert.doesNotMatch(reader,/img\.removeAttribute\('src'\);\s*\}\s*\}\s*\},\{root:view/,
+  'Scrolling out of view must not always clear existing image pixels');
+assert.match(reader,/append:payload=>add\(Array\.isArray\(payload\)\?payload:payload\?\.pages\)/,
+  'Native streamed image batches must be accepted without loss');
 console.log('ASTERION_READER_CONTRACT_PASS');
