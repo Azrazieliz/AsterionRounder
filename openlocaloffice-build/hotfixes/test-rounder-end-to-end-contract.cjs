@@ -98,4 +98,23 @@ assert.match(nativeTerabox,/tb\(\)\.openThumbnail\(path,folder,page\)/,
   'Cloud cover requests must recover thumbnail URLs by metadata page');
 assert.match(metadataClient,/listPageCached\(folder,page\)/,
   'Thumbnail cache misses should reuse a full cached metadata page instead of per-file metadata calls');
+// Rounder fully replaces the former cloud adapter. No third-party provider
+// authority, playback workaround or UI label may be reintroduced by overlays.
+for(const source of [
+  'app/src/main/java/com/openlocal/office/MainActivity.java',
+  'app/src/main/java/com/openlocal/office/core/ReaderLibrary.java',
+  'app/src/main/java/com/openlocal/office/core/ReaderCovers.java',
+  'app/src/main/java/com/openlocal/office/core/FgMediaPlayer.java',
+  'app/src/main/java/com/openlocal/office/core/BookArchive.java',
+  'app/src/main/java/com/openlocal/office/core/SeekableZip.java',
+  'app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java',
+  'app/src/main/assets/premium-library.js',
+  'app/src/main/assets/reader-controls.js'
+]){
+  const data=fs.readFileSync(source,'utf8');
+  assert.doesNotMatch(data,/round[\\s_-]?sync|felixnuesse/i,
+    'Legacy RoundSync implementation must not return: '+source);
+}
+assert.match(media,/if\(teraboxDirect\)playTeraboxRanges\(\);\s*else play\(original\)/,
+  'Remote video must follow the native TeraBox range path, without legacy provider copies');
 console.log('ASTERION_READER_CONTRACT_PASS');
