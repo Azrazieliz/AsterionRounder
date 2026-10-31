@@ -41,12 +41,33 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
         fgTbCoverIds.clear();
         fgDirectoryExecutor.execute(()->{
             final long start=android.os.SystemClock.elapsedRealtime();
+            // Four metadata requests in flight maximum. Images themselves
+            // never download during folder discovery.
+            final java.util.concurrent.ExecutorService listPool=
+                java.util.concurrent.Executors.newFixedThreadPool(4);
+            final java.util.Map<Integer,java.util.concurrent.Future<org.json.JSONArray>>
+                listingFutures=new java.util.HashMap<>();
             try{
                 if(!tb().configured())throw new IOException("Connect a TeraBox ndus cookie first");
                 int total=0;
                 for(int page=1;page<=10000;page++){
                     if(version!=fgTbVersion.get())return;
-                    org.json.JSONArray cloud=tb().listPageCached(requested,page);
+                    org.json.JSONArray cloud;
+                    if(page==1){
+                        // Prioritize first visible rows before parallel paging.
+                        cloud=tb().listPageCached(requested,1);
+                    }else{
+                        for(int candidate=page;candidate<page+4&&candidate<=10000;candidate++){
+                            if(!listingFutures.containsKey(candidate)){
+                                final int requestedPage=candidate;
+                                listingFutures.put(candidate,listPool.submit(
+                                    ()->tb().listPageCached(requested,requestedPage)));
+                            }
+                        }
+                        cloud=listingFutures.remove(page).get(65,
+                            java.util.concurrent.TimeUnit.SECONDS);
+                    }
+                    if(version!=fgTbVersion.get())return;
                     org.json.JSONArray batch=new org.json.JSONArray();
                     for(int i=0;i<cloud.length();i++){
                         org.json.JSONObject row=cloud.optJSONObject(i);
@@ -90,6 +111,10 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
                             q(message)+")");
                     });
                 }
+            }finally{
+                for(java.util.concurrent.Future<?> future:listingFutures.values())
+                    future.cancel(true);
+                listPool.shutdownNow();
             }
         });
     }

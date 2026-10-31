@@ -64,4 +64,11 @@ assert.doesNotMatch(reader,/img\.removeAttribute\('src'\);\s*\}\s*\}\s*\},\{root
   'Scrolling out of view must not always clear existing image pixels');
 assert.match(reader,/append:payload=>add\(Array\.isArray\(payload\)\?payload:payload\?\.pages\)/,
   'Native streamed image batches must be accepted without loss');
+const nativeTerabox=fs.readFileSync('../hotfixes/apply-direct-terabox-20261031.py','utf8');
+assert.match(nativeTerabox,/newFixedThreadPool\(4\)/,
+  'Cloud metadata listing uses bounded parallelism');
+assert.match(nativeTerabox,/listPageCached\(requested,requestedPage\)/,
+  'Cloud background jobs request metadata pages, not original image streams');
+assert.match(nativeTerabox,/listPool.shutdownNow\(\)/,
+  'Leaving a folder must cancel outstanding cloud metadata workers');
 console.log('ASTERION_READER_CONTRACT_PASS');
