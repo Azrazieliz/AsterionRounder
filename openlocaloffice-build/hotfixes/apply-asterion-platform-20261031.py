@@ -136,8 +136,10 @@ old='''     if(imagePumpState!==state||imagePumpVersion!==state.version)return;
 new='''     if(imagePumpState!==state||imagePumpVersion!==state.version)return;
      if(state.preparing)return;
      if(state.offset>=state.siblings.length){'''
-assert j.count(old)==1
-j=j.replace(old,new,1)
+if old in j:
+    j=j.replace(old,new,1)
+else:
+    assert 'if(state.preparing||!state.demand)return;' in j, "Missing reader-demand guard"
 # Asterion identity throughout the file-management UI.
 j=j.replace("'File Gestioner'","'Asterion Files'")
 j=j.replace("'YOUR PRIVATE LIBRARY'","'ASTERION · FILE PLATFORM'")
