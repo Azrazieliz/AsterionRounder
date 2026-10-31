@@ -18,7 +18,7 @@ s=s.replace(anchor,'''        @JavascriptInterface public void openTeraboxFile(S
 '''+anchor,1)
 # Try server thumbnails first, then bounded archive-cover extraction.
 # The decoded path remains in scope when a server preview is unavailable.
-needle='''        }catch(Exception problem){
+needle='''        catch(Exception problem){
             android.util.Log.w("FG_TERA","Thumbnail error: "+
                 problem.getClass().getSimpleName());
             return new WebResourceResponse("image/jpeg",null,
@@ -27,7 +27,7 @@ needle='''        }catch(Exception problem){
     }
     private WebResourceResponse fgTbImage('''
 assert s.count(needle)==1, "Expected stateless cloud cover handler"
-s=s.replace(needle,'''        }catch(Exception noServerPreview){
+s=s.replace(needle,'''        catch(Exception noServerPreview){
             try{
                 if(path!=null){
                     String lower=path.toLowerCase(java.util.Locale.ROOT);
