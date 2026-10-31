@@ -186,23 +186,28 @@ class Handler(BaseHTTPRequestHandler):
             studio_ws({"type":"camera","command":"setview",
                 "pos":[float(math.sin(yaw)*distance),1.25+pitch,float(math.cos(yaw)*distance)],
                 "rot":[float(-pitch*45),float(yaw*180/math.pi),0],"fov":35})
-            # KKStudioSocket already supports direct native Unity frame capture.
-            # The old native-frame.request file had no consumer, so the PC
-            # always timed out despite successful character import.
+            # Offscreen capture works without exposing Studio's desktop.
+            # A hidden Studio window cannot reliably serve Unity screenshots.
             with RENDER_LOCK:
-                response=studio_ws({
-                    "type":"screenshot","width":680,"height":800,
-                    "transparency":False,"mark":False},timeout=60)
-                payload=response.get("data") or {}
-                encoded=payload.get("image","")
-                if not isinstance(encoded,str) or len(encoded)>24*1024*1024:
-                    raise RuntimeError("Studio supplied no valid encoded frame")
-                raw=base64.b64decode(encoded,validate=True)
-                if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
-                    raise RuntimeError("Studio returned an invalid PNG frame")
-                if len(raw)<200 or len(raw)>16*1024*1024:
-                    raise RuntimeError("Studio frame size out of bounds")
-                return self.reply(200,raw,"image/png")
+                output=ROOT/"native-frame.png"
+                errors=ROOT/"native-frame.error"
+                request=ROOT/"native-frame.request"
+                for stale in (output,errors,request):
+                    if stale.exists():stale.unlink()
+                request.write_text("680,800",encoding="ascii")
+                deadline=time.monotonic()+35
+                while time.monotonic()<deadline:
+                    if errors.exists():
+                        raise RuntimeError("Native offscreen capture: "+errors.read_text()[:450])
+                    if output.exists() and output.stat().st_size>200:
+                        raw=output.read_bytes()
+                        if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+                            raise RuntimeError("Offscreen capture was not a PNG")
+                        if len(raw)>16*1024*1024:
+                            raise RuntimeError("Offscreen capture exceeds 16 MiB")
+                        return self.reply(200,raw,"image/png")
+                    time.sleep(.1)
+                raise RuntimeError("Native Unity offscreen capture timed out")
         name=f"{sid}_{yaw:.2f}_{pitch:.2f}_{distance:.2f}.jpg"
         destination=ROOT/"frames"/name
         destination.parent.mkdir(exist_ok=True)
