@@ -18,6 +18,15 @@ assert.match(archive,/im\.loading='eager'/,
 assert.match(book,/requested\.size>=2/, 'EPUB must not queue hundreds of chapter streams');
 assert.match(book,/EPUB_CHAPTER_RENDERED/, 'EPUB must report actual visible chapter content');
 assert.match(media,/teraboxDirect\)playTeraboxRanges/, 'Cloud video stays on seekable streaming path');
+assert.match(media,/setShowPreviousButton\(false\)/,
+  'Hide duplicate Media3 previous controls in fullscreen');
+assert.match(media,/setShowNextButton\(false\)/,
+  'Hide duplicate Media3 next controls in fullscreen');
+assert.match(media,/R\.id\.exo_prev/,
+  'Explicitly suppress legacy Media3 previous overlay icon');
+assert.match(media,/R\.id\.exo_next/,
+  'Explicitly suppress legacy Media3 next overlay icon');
+
 assert.match(media,/PlayerView.ControllerVisibilityListener/,
   'Overlay navigation follows Media3 playback controls rather than a full-width bar');
 assert.match(media,/mediaNavigator.navigate\(-1,false\)/,
@@ -42,6 +51,11 @@ for(const name of ['reader-controls.js','universal-reader.js','epub-reader.js'])
 }
 const pages=fs.readFileSync('app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java','utf8');
 const metadataClient=fs.readFileSync('app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java','utf8');
+assert.match(metadataClient,/private final Map<String,HotPage> hotPages/,
+  'Recently used TeraBox pages must be cached in bounded RAM');
+assert.match(metadataClient,/size\(\)>32/,
+  'Hot page cache must not grow without limit');
+
 const library=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
 const covers=fs.readFileSync('app/src/main/java/com/openlocal/office/core/ReaderCovers.java','utf8');
 assert.match(pages,/queryChildDocuments\(String documentId,String\[\] projection,Bundle args\)/,
