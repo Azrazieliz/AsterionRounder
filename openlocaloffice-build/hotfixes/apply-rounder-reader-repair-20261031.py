@@ -217,7 +217,7 @@ t=js.read_text()
 # URI. Deduplication must use path, not undefined URI for every item.
 old='new Set(state.siblings.map(e=>e.uri))'
 new='new Set(state.siblings.map(e=>e.path||e.uri))'
-assert old in t or new in t
+assert old in t or new in t or 'state.known=new Set(state.siblings.map(x=>x.path||x.uri))' in t
 if old in t:
     t=t.replace(old,new,1)
     t=t.replace('known.has(entry.uri)','known.has(entry.path||entry.uri)',1)
@@ -229,7 +229,7 @@ t=t.replace(anchor,''' // Playlist follows the currently visible folder and neve
  // a full-file transfer to navigate between movies.
  if(classify(item)==='video'){
    const candidates=entries.filter(x=>!x.folder&&classify(x)==='video')
-     .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}))
+     .sort((a,b)=>naturalCollator.compare(a.name,b.name))
      .slice(0,1500);
    bridge()?.setVideoQueue?.(JSON.stringify({entries:candidates.map(x=>({
      name:x.name,uri:x.terabox?'':x.uri,path:x.terabox?x.path:'',size:x.size
