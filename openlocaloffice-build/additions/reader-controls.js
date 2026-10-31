@@ -202,7 +202,7 @@ function renderImageFolder(data){
      }
    });
  koikatsu.classList.add('fg-image-koikatsu','fg-koikatsu-float');
- koikatsu.hidden=data.koikatsuCard!==true;
+ koikatsu.hidden=data.koikatsuCard!==true && !/\.png$/i.test(pages[0]?.name||'');
  koikatsu.dataset.verified=data.koikatsuCard===true?'true':'false';
  if(data.koikatsuCard===true)koikatsu.textContent='Open 3D';
  bar.append(close,previous,position,next,modeButton,collapse);
@@ -239,9 +239,12 @@ function renderImageFolder(data){
      pending3dOpen=false;auto3dOpened=false;
      koikatsu.dataset.verified='false';
      koikatsu.textContent='Check 3D';
-     koikatsu.hidden=true;
+     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'');
      window.AndroidBridge?.selectImageCollectionPage?.(current);
    }
+   if(koikatsu.dataset.verified!=='true' &&
+      koikatsu.textContent!=='Not a 3D card')
+     koikatsu.hidden=!/\.png$/i.test(pages[current]?.name||'');
    position.textContent=pages.length?(current+1)+' / '+pages.length+(finished?'':'+'):'0 / …';
    previous.disabled=current===0;
    next.disabled=finished&&current+1>=pages.length;
@@ -429,7 +432,7 @@ function renderImageFolder(data){
    select:i=>{selectedIndex=i;jumpTo(i);},
    koikatsuCard:valid=>{
      koikatsu.dataset.verified=valid?'true':'false';
-     koikatsu.hidden=!valid;
+     koikatsu.hidden=!valid&&!/\.png$/i.test(pages[current]?.name||'');
      koikatsu.textContent=valid?'Open 3D':'Check 3D';
      koikatsu.title=valid?'Open verified Koikatsu character remotely in 3D':
        'This PNG has not been verified as a Koikatsu card';
