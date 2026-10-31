@@ -19,15 +19,11 @@ import java.util.concurrent.Semaphore;
 public final class ReaderCovers {
     private static final Semaphore WORKERS=new Semaphore(2);
     private ReaderCovers(){}
-    /** A Round Sync SAF archive descriptor may be a pipe; even a 4 MB CBZ
-     * caused an entire remote transfer just to discover its first image.
-     * Keep already generated local cover cache, but never initiate a cloud
-     * archive transfer in the background on the library screen. */
+    /** A remote archive cover must never force a complete cloud transfer
+     * while building a listing. Preserve covers already in the local cache. */
     public static boolean isExpensiveCloudCover(Uri uri,String name){
         if(uri==null||name==null)return false;
-        String authority=uri.getAuthority();
-        if(authority==null)return false;
-        return "de.felixnuesse.extract.vcp".equals(authority) &&
+        return FgTeraboxDocumentsProvider.AUTHORITY.equals(uri.getAuthority()) &&
             (isArchive(name)||"folder-cover.jpg".equals(name));
     }
     public static boolean hasCached(Context ctx,Uri uri,long size,long modified){
