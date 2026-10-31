@@ -213,9 +213,23 @@ s=s.replace(anchor,'''        if(requestCode==FG_TERA_SAVE_REQUEST){
 anchor='        @JavascriptInterface public void listLibrary(String folder){loadLibrary(folder);}'
 assert s.count(anchor)==1
 s=s.replace(anchor,'''        @JavascriptInterface public void verifyCurrentKoikatsuCard(){
+            // Image collections keep their selected SAF URI independently of
+            // currentUri; using currentUri here inspected the preceding file
+            // (or null), leaving genuine Koikatsu PNGs without 3D controls.
+            final String selected=fgSelectedCollectionImage;
+            if(selected!=null&&fgImageCollectionActive){
+                checkCollectionKoikatsu(Uri.parse(selected));
+                return;
+            }
             final Uri local=currentUri;
             if(local!=null&&"content".equals(local.getScheme())){
-                verifyKoikatsuInBackground(local,imageStreamToken);
+                final Uri selectedUri=local;
+                io.execute(()->{
+                    boolean verified=KoikatsuCards.isCharacterCard(this,selectedUri);
+                    fgVerifiedKoikatsuCard=verified?selectedUri:null;
+                    final boolean ok=verified;
+                    runOnUiThread(()->js("window.FileGestionerFolder?.koikatsuCard("+ok+")"));
+                });
                 return;
             }
             final String cloud=fgTbSelectedPath;
