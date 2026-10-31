@@ -29,6 +29,12 @@ public final class FgTeraboxClient {
     private static final int PAGE=100;
     private final Context app;
     private final SharedPreferences prefs;
+    private final Map<String,String> thumbUrls=Collections.synchronizedMap(
+        new LinkedHashMap<String,String>(1200,0.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<String,String> oldest){
+                return size()>1600;
+            }
+        });
     public FgTeraboxClient(Context context){
         app=context.getApplicationContext();
         prefs=app.getSharedPreferences("fg_terabox_secure",Context.MODE_PRIVATE);
@@ -145,9 +151,20 @@ public final class FgTeraboxClient {
         Map<String,String> args=new LinkedHashMap<>();
         args.put("dir",safePath(path));args.put("page",Integer.toString(page));
         args.put("num",Integer.toString(PAGE));
+        args.put("web","1");
         JSONObject result=api("/api/list",args);
         JSONArray rows=result.optJSONArray("list");
         if(rows==null)throw new IOException("TeraBox did not return a file list");
+        for(int i=0;i<rows.length();i++){
+            JSONObject item=rows.optJSONObject(i);
+            if(item==null||item.optInt("isdir",0)!=0)continue;
+            JSONObject thumbs=item.optJSONObject("thumbs");
+            if(thumbs==null)continue;
+            String url=thumbs.optString("url3",thumbs.optString("url2",""));
+            String path=item.optString("path","");
+            if(!path.isEmpty()&&(url.startsWith("https://")||
+                url.startsWith("http://")))thumbUrls.put(path,url);
+        }
         return rows;
     }
     public JSONObject fileDetails(String path) throws Exception{
@@ -201,6 +218,37 @@ public final class FgTeraboxClient {
             }catch(Exception e){stream.disconnect();throw e;}
         }
         throw new IOException("Too many cloud download redirects");
+    }
+    /**
+     * Read a cloud-provided thumbnail without downloading a full image.
+     * Returned stream is closed by the WebResourceResponse consumer.
+     */
+    public InputStream openThumbnail(String path) throws Exception{
+        String thumb=thumbUrls.get(safePath(path));
+        if(thumb==null||thumb.isEmpty())return open(path);
+        URL target=new URL(thumb);
+        if(!target.getProtocol().equals("https"))
+            throw new IOException("Unsecured thumbnail URL rejected");
+        HttpURLConnection request=(HttpURLConnection)target.openConnection();
+        request.setConnectTimeout(8500);
+        request.setReadTimeout(30000);
+        request.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android) AppleWebKit/537.36");
+        request.setRequestProperty("Referer","https://www.terabox.com/");
+        String host=target.getHost().toLowerCase(Locale.ROOT);
+        if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
+           host.equals("dubox.com")||host.endsWith(".dubox.com"))
+            request.setRequestProperty("Cookie",cookie());
+        int status=request.getResponseCode();
+        if(status<200||status>=300){
+            request.disconnect();
+            throw new IOException("Thumbnail HTTP "+status);
+        }
+        InputStream content=request.getInputStream();
+        return new FilterInputStream(content){
+            @Override public void close() throws IOException{
+                try{super.close();}finally{request.disconnect();}
+            }
+        };
     }
     public void save(String path,OutputStream output) throws Exception{
         try(InputStream input=open(path)){
