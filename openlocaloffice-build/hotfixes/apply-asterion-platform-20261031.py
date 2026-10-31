@@ -115,7 +115,7 @@ old='''   const siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
    imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
      offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
    // Native loads the viewer first. It notifies us after installing the
-   // image-reader callback, so no early Round Sync batch can be lost.
+   // image-reader callback, so no early storage batch can be lost.
    bridge().beginImageCollection(item.uri);'''
 new='''   const version=++imagePumpVersion;
    const state={version,siblings:[],known:new Set(),offset:0,started:false,
@@ -149,8 +149,6 @@ j=j.replace("'Your files. Your control.'","'Everything in one place.'")
 j=j.replace("'Browse local and connected storage. Files remain on their original provider.'",
             "'Open and explore your local and TeraBox files without importing them first.'")
 j=j.replace("'YOUR FILES · LOCAL & CONNECTED STORAGE'","'ASTERION FILES · LOCAL & TERABOX'")
-j=j.replace("tbBtn.title='Native cloud browsing — no RoundSync required';",
-            "tbBtn.title='Secure native TeraBox storage';")
 js.write_text(j,encoding="utf-8")
 # Preserve installed certificate and package ID, advance version for update-in-place.
 gradle=Path("app/build.gradle.kts")
