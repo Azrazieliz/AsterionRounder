@@ -112,6 +112,8 @@ assert j.count(a)==1
 j=j.replace(a,"},{root:view,rootMargin:'100% 0px',threshold:0});",1)
 # Prevent listener leaks after switching readers repeatedly.
 needle=" let imageObserver=null,batchObserver=null,index=0,current=0,finished=false,busy=false;"
+if j.count(needle)!=1:
+    needle=" let imageObserver=null,batchObserver=null,index=0,current=0,finished=Boolean(data.standalone),busy=false;"
 assert j.count(needle)==1
 j=j.replace(needle,needle+'''
  // When the next document opens, dispose retained observers immediately.
