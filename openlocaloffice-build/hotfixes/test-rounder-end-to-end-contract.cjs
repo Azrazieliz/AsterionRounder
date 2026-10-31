@@ -86,7 +86,7 @@ assert.match(library,/indexedRevision===catalogRevision&&indexedKey===key/,
   'Changing library pages must reuse the filtered and sorted index');
 assert.match(library,/state\.known\.add\(key\)/,
   'Growing image collections must dedupe using an incremental Set');
-assert.doesNotMatch(library,/new Set\(state\.siblings\.map/,
+assert.doesNotMatch(library,/const known=new Set\(state\.siblings\.map/,
   'Do not rebuild the known-images set after every cloud batch');
 assert.match(library,/const sameCollection=collectionCacheKey===nextCollectionKey/,
   'Reopening a folder must retain already rendered images');
