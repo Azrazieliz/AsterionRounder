@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """ASTERION adaptive launcher mark and functional library theme."""
 from pathlib import Path
 res=Path("app/src/main/res")
@@ -60,7 +60,7 @@ for folder in ("mipmap-anydpi-v26","mipmap-anydpi-v33"):
  <foreground android:drawable="@drawable/ic_launcher_foreground"/>
 </adaptive-icon>
 """,encoding="utf-8")
-css=Path("app/src/main/assets/premium-library.css")
+css=Path("app/src/main/assets/style.css")
 c=css.read_text(encoding="utf-8")
 c+="""
 
@@ -104,3 +104,4 @@ c+="""
 """
 css.write_text(c,encoding="utf-8")
 print("Asterion adaptive icon and responsive library theme written")
+
