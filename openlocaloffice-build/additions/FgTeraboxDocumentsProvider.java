@@ -15,6 +15,11 @@ import android.provider.DocumentsContract;
 import android.provider.DocumentsProvider;
 import android.net.Uri;
 import java.io.IOException;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import android.content.ContentResolver;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -62,6 +68,17 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
     private final Set<String> listed=new HashSet<>();
     private final Map<String,Long> retryAfter=new HashMap<>();
     private static final int SAF_MAX_VISIBLE=450;
+    // Custom queryArgs understood by AsterionCore, not by the system picker.
+    public static final String PAGE_OFFSET="asterion.page.offset";
+    public static final String PAGE_LIMIT="asterion.page.limit";
+    private static final int INDEX_PAGE_SIZE=100;
+    private static final long METADATA_FRESH_MS=15*60*1000L;
+    private final ExecutorService pageWorkers=Executors.newFixedThreadPool(4,r->{
+        Thread thread=new Thread(r,"asterion-metadata-page");
+        thread.setDaemon(true);return thread;
+    });
+    private final Set<String> pageFlights=ConcurrentHashMap.newKeySet();
+    private final Map<String,Long> failedPages=new ConcurrentHashMap<>();
 
 
     public static Uri uriFor(String path) {
@@ -143,7 +160,16 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         boolean dir = item.optInt("isdir", 0) != 0 || "/".equals(cloudPath);
         String name = item.optString("server_filename", "");
         if (name.isEmpty()) name = "/".equals(cloudPath) ? "TeraBox" : cloudPath.substring(cloudPath.lastIndexOf('/') + 1);
-        add(row, rows, DocumentsContract.Document.COLUMN_DOCUMENT_ID, "tb:" + cloudPath);
+        long fileSize=item.optLong("size",-1L);
+        String docId="tb:"+cloudPath;
+        if(!dir&&fileSize>=0L){
+            String encoded=android.util.Base64.encodeToString(
+                cloudPath.getBytes(StandardCharsets.UTF_8),
+                android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+                android.util.Base64.NO_PADDING);
+            docId="tb2:"+encoded+"."+fileSize;
+        }
+        add(row, rows, DocumentsContract.Document.COLUMN_DOCUMENT_ID, docId);
         add(row, rows, DocumentsContract.Document.COLUMN_DISPLAY_NAME, name);
         add(row, rows, DocumentsContract.Document.COLUMN_MIME_TYPE,
             dir ? DocumentsContract.Document.MIME_TYPE_DIR : FgTeraboxClient.mime(name));
@@ -179,6 +205,132 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             }
             return rows;
         }catch(Exception ex){throw unavailable(ex);}
+    }
+    /**
+     * AsterionCore streams directory metadata 100 at a time through the
+     * Android SAF permission it already owns. No image pixels are fetched.
+     * Standard Android picker queries continue to use the legacy method.
+     */
+    @Override public Cursor queryChildDocuments(String documentId,String[] projection,Bundle args)
+            throws java.io.FileNotFoundException {
+        if(args==null||!args.containsKey(PAGE_OFFSET))
+            return queryChildDocuments(documentId,projection,(String)null);
+        final MatrixCursor rows=new MatrixCursor(projection==null?DOC_COLUMNS:projection);
+        try{
+            if(!client.configured())throw new IOException("TeraBox is disconnected");
+            final String folder=path(documentId);
+            final int offset=args.getInt(PAGE_OFFSET,-1);
+            final int limit=args.getInt(PAGE_LIMIT,INDEX_PAGE_SIZE);
+            if(offset<0||offset%INDEX_PAGE_SIZE!=0||limit!=INDEX_PAGE_SIZE||
+               offset/INDEX_PAGE_SIZE>=100000)
+                throw new IOException("Invalid paged directory query");
+            final int page=offset/INDEX_PAGE_SIZE+1;
+            final String key=pageKey(folder,page);
+            final File cache=pageFile(key);
+            JSONArray cached=readMetadataPage(cache);
+            boolean stale=cache.isFile()&&
+                System.currentTimeMillis()-cache.lastModified()>METADATA_FRESH_MS;
+            // Unlike the ordinary picker, the bulk scanner consumes one
+            // small Cursor per page; no 450-file hard truncation.
+            if(cached==null||stale)queuePage(folder,page,key,cache);
+            if(cached!=null){
+                for(int i=0;i<cached.length();i++){
+                    JSONObject item=cached.optJSONObject(i);
+                    if(item==null)continue;
+                    String cloudPath=item.optString("path","");
+                    if(cloudPath.startsWith("/"))addDocument(rows,item,cloudPath);
+                }
+            }
+            Bundle result=new Bundle();
+            result.putBoolean(DocumentsContract.EXTRA_LOADING,
+                (cached==null||stale)&&pageFlights.contains(key));
+            // On errors do not silently return an empty, complete directory.
+            result.putBoolean("asterion.page.ready",cached!=null&&!stale);
+            result.putInt("asterion.page.number",page);
+            rows.setExtras(result);
+            rows.setNotificationUri(getContext().getContentResolver(),
+                DocumentsContract.buildChildDocumentsUri(AUTHORITY,documentId));
+            return rows;
+        }catch(Exception e){throw unavailable(e);}
+    }
+    private String pageKey(String folder,int page)throws Exception{
+        String scope=client.metadataScope();
+        if(scope==null||scope.isEmpty())throw new IOException("No TeraBox session scope");
+        byte[] digest=MessageDigest.getInstance("SHA-256").digest(
+            (scope+"|"+folder+"|"+page).getBytes(StandardCharsets.UTF_8));
+        StringBuilder b=new StringBuilder();
+        for(byte n:digest)b.append(String.format(Locale.ROOT,"%02x",n&255));
+        return b.toString();
+    }
+    private File pageFile(String key)throws IOException{
+        File dir=new File(getContext().getFilesDir(),"terabox-metadata-v1");
+        if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Cannot create private metadata index");
+        return new File(dir,key+".json");
+    }
+    private JSONArray readMetadataPage(File cache){
+        if(!cache.isFile()||cache.length()>256*1024)return null;
+        try{
+            byte[] bytes=new byte[(int)cache.length()];
+            try(java.io.FileInputStream input=new java.io.FileInputStream(cache)){
+                int pos=0;
+                while(pos<bytes.length){
+                    int got=input.read(bytes,pos,bytes.length-pos);
+                    if(got<0)throw new IOException("Incomplete metadata page");
+                    pos+=got;
+                }
+            }
+            return new JSONArray(new String(bytes,StandardCharsets.UTF_8));
+        }catch(Exception e){
+            cache.delete();
+            return null;
+        }
+    }
+    private void queuePage(String folder,int page,String key,File file){
+        long now=android.os.SystemClock.elapsedRealtime();
+        if(now<failedPages.getOrDefault(key,0L)||!pageFlights.add(key))return;
+        pageWorkers.execute(()->{
+            try{
+                JSONArray cloud=client.listPage(folder,page);
+                JSONArray minimal=new JSONArray();
+                for(int i=0;i<cloud.length();i++){
+                    JSONObject item=cloud.optJSONObject(i);
+                    if(item==null)continue;
+                    String full=item.optString("path","");
+                    if(!full.startsWith("/"))continue;
+                    JSONObject kept=new JSONObject();
+                    kept.put("path",full);
+                    kept.put("server_filename",item.optString("server_filename",""));
+                    kept.put("isdir",item.optInt("isdir",0));
+                    kept.put("size",item.optLong("size",-1L));
+                    kept.put("server_mtime",item.optLong("server_mtime",0L));
+                    minimal.put(kept);
+                }
+                // Write metadata only (no thumbnails/original bytes), atomically.
+                File temp=new File(file.getParentFile(),key+".part");
+                byte[] bytes=minimal.toString().getBytes(StandardCharsets.UTF_8);
+                if(bytes.length>256*1024)throw new IOException("Metadata page exceeded size limit");
+                try(FileOutputStream stream=new FileOutputStream(temp)){
+                    stream.write(bytes);stream.getFD().sync();
+                }
+                if(!temp.renameTo(file)){
+                    if(file.exists()&&!file.delete()||!temp.renameTo(file))
+                        throw new IOException("Unable to store metadata page");
+                }
+                failedPages.remove(key);
+            }catch(Exception ex){
+                failedPages.put(key,android.os.SystemClock.elapsedRealtime()+5000L);
+                android.util.Log.w("FG_TERA_PROVIDER",
+                    "Metadata page temporarily unavailable "+ex.getClass().getSimpleName());
+            }finally{
+                pageFlights.remove(key);
+                try{getContext().getContentResolver().notifyChange(
+                    DocumentsContract.buildChildDocumentsUri(AUTHORITY,"tb:"+folder),null);
+                }catch(Exception ignored){}
+            }
+        });
+        // Fetch the next two pages concurrently, but only on the foreground
+        // consumer's request; avoid 100K unbounded queued tasks.
+        if(page==1||page%4==0) android.util.Log.d("FG_TERA_PROVIDER","Paged metadata fetch active");
     }
     @Override public Cursor queryChildDocuments(String parentDocumentId,String[] projection,String sortOrder)
             throws java.io.FileNotFoundException {

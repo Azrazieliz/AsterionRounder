@@ -79,6 +79,9 @@ public final class FgTeraboxClient {
     }
     public synchronized void disconnect(){linkCache.clear();thumbUrls.clear();prefs.edit().remove("ndus").remove("iv").remove("preview_scope").apply();}
     public boolean configured(){return prefs.contains("ndus")&&prefs.contains("iv");}
+    // Random UUID is rotated on reconnect and is NOT the ndus token.
+    // Scoped private metadata pages can never leak between TeraBox accounts.
+    public String metadataScope(){return prefs.getString("preview_scope","");}
     private String cookie() throws Exception{
         String ciphertext=prefs.getString("ndus",null);
         String iv=prefs.getString("iv",null);
