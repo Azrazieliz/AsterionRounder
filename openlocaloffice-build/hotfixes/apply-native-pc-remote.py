@@ -166,28 +166,49 @@ s=s.replace("</body>",'<script src="fg-remote-ui.js"></script>\n</body>')
 html.write_text(s)
 css=root/"assets/style.css"
 css.write_text(css.read_text()+r'''
-/* Native PC 3D is independent of the offline 3D mesh viewer. */
-.fg-pc-entry[hidden]{display:none!important}
+/* Full-page remote PC camera viewer. Keep Android reader controls behind the
+   overlay and never expose a second Open 3D button on top. */
+.fg-pc-entry[hidden],body.fg-pc-active .fg-pc-entry{display:none!important}
 .fg-pc-entry{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));
  right:15px;z-index:97;background:#506ce3;color:#fff;
  border:1px solid #7389ef;border-radius:13px;padding:12px;font:700 14px system-ui}
-.fg-pc-overlay{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;
- background:#0d1420;color:#eaf1ff;font:13px system-ui;
- padding:calc(7px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom))}
-.fg-pc-head{display:flex;align-items:center;justify-content:space-between;padding:6px 3px}
-.fg-pc-close,.fg-pc-action{background:#283958;color:white;border:1px solid #4a6091;
- border-radius:8px;padding:10px;font:600 13px system-ui}
-.fg-pc-pair,.fg-pc-actions{display:flex;gap:6px;padding:5px 0}
-.fg-pc-token{min-width:0;flex:1;color:white;background:#172438;border:1px solid #3c557a;
+body.fg-pc-active{overflow:hidden!important}
+.fg-pc-overlay{position:fixed!important;inset:0!important;z-index:2147483640!important;
+ display:block!important;width:100vw!important;height:100vh!important;height:100dvh!important;
+ max-height:none!important;overflow:hidden!important;isolation:isolate;
+ box-sizing:border-box;background:#090e18;color:#eaf1ff;font:13px system-ui;padding:0!important}
+.fg-pc-viewport{position:absolute!important;inset:0!important;width:100%!important;
+ height:100%!important;min-height:0!important;display:block!important;
+ touch-action:none;user-select:none;overflow:hidden;background:#090e18}
+.fg-pc-frame{position:absolute!important;inset:0;width:100%!important;
+ height:100%!important;object-fit:contain!important;pointer-events:none}
+.fg-pc-frame[hidden],.fg-pc-placeholder[hidden]{display:none!important}
+.fg-pc-placeholder{position:absolute;inset:0;display:flex;align-items:center;
+ justify-content:center;text-align:center;color:#a3b5cf;padding:25px;
+ font:500 14px/1.5 system-ui}
+.fg-pc-head{position:absolute!important;z-index:3;top:0;left:0;right:0;
+ display:flex;align-items:center;justify-content:space-between;min-height:50px;
+ padding:calc(6px + env(safe-area-inset-top)) 14px 8px;
+ background:linear-gradient(#07101ae6,#07101a00)}
+.fg-pc-head strong{font-size:14px}
+.fg-pc-close,.fg-pc-action{background:#243451e8;color:white;
+ border:1px solid #526887;border-radius:10px;padding:10px 12px;
+ font:600 13px system-ui}
+.fg-pc-actions{position:absolute!important;z-index:3;left:0;right:0;bottom:0;
+ display:flex;gap:8px;padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+ background:linear-gradient(transparent,#07101af2);justify-content:center}
+.fg-pc-status{position:absolute!important;z-index:2;left:0;right:0;
+ bottom:calc(65px + env(safe-area-inset-bottom));color:#d0ddf2;text-align:center;
+ padding:15px 12px 8px;min-height:0!important;pointer-events:none;
+ background:linear-gradient(transparent,#07101a9a);font:12px/1.4 system-ui}
+.fg-pc-remote-config{position:absolute;z-index:4;left:10px;right:10px;bottom:110px;
+ display:flex;flex-wrap:wrap;gap:8px;padding:12px;
+ background:#172438ee;border-radius:12px;box-shadow:0 10px 30px #0009}
+.fg-pc-remote-address,.fg-pc-token{min-width:0;flex:1 1 180px;
+ color:white;background:#172438;border:1px solid #3c557a;
  border-radius:8px;padding:8px 10px;font:13px system-ui}
-.fg-pc-viewport{position:relative;flex:1;min-height:120px;background:#101925;
- display:grid;place-items:center;touch-action:none;overflow:hidden}
-.fg-pc-frame{width:100%;height:100%;object-fit:contain;pointer-events:none}
-.fg-pc-frame[hidden]{display:none!important}
-.fg-pc-placeholder{max-width:300px;text-align:center;color:#a3b5cf;
- font:500 13px/1.65 system-ui;padding:18px}
-.fg-pc-placeholder[hidden]{display:none!important}
-.fg-pc-status{font:12px/1.5 system-ui;color:#cbd7f2;min-height:30px;padding:6px}
+.fg-pc-config-status{width:100%;font:12px system-ui}
+
 ''')
 xml=root/"res/xml"
 xml.mkdir(parents=True,exist_ok=True)
