@@ -14,7 +14,7 @@ import java.util.zip.*;
  * Random-access ZIP/ZIP64 index on a SAF file descriptor.
  * No /proc/self/fd reopening, no full-file copy, no whole-archive byte array.
  * Reads ONLY EOCD + central directory before opening an image; works with a
- * 5GiB seekable file whose owner is Round Sync, TeraBox or another provider.
+ * 5GiB seekable file supplied by native TeraBox or local Android storage.
  */
 public final class SeekableZip implements Closeable {
     private static final int LOCAL_SIG=0x04034b50, CENTRAL_SIG=0x02014b50;
