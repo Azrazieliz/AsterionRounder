@@ -36,7 +36,7 @@ replacement=r'''    private final java.util.concurrent.ConcurrentHashMap<Integer
         });
     }
     // Image tiles already have SAF URIs from the library scanner. Reuse those
-    // entries for local storage AND Round Sync; never enumerate a cloud folder
+    // entries for local storage; never enumerate a folder
     // a second time just to display its already-listed pictures.
     private void beginImageCollection(String startUri){
         if(startUri==null||!allowedLibraryUris.contains(startUri))return;
@@ -164,7 +164,7 @@ replacement=r'''    private final java.util.concurrent.ConcurrentHashMap<Integer
                 final String folderId=android.provider.DocumentsContract.getDocumentId(directory);
                 final long startMillis=android.os.SystemClock.elapsedRealtime();
                 // Reuse the same adaptive SAF listing strategy as the library.
-                // Round Sync may refuse tree-scoped queries or optional columns.
+                // Some Android providers may refuse tree-scoped queries or optional columns.
                 final java.util.List<FolderPage> batch=new java.util.ArrayList<>(48);
                 ReaderLibrary.stream(this,libraryTree,folderId,(foundFolder,items,done)->{
                     if(request!=fgFolderVersion.get())
@@ -272,4 +272,4 @@ s=s.replace(anchor,'''        @JavascriptInterface public void beginImageCollect
         }
 '''+anchor,1)
 main.write_text(s)
-print("SAF image folders: Round Sync tree access, sequential navigation and resilient image streams")
+print("SAF image folders: native Android tree access, sequential navigation and resilient image streams")
