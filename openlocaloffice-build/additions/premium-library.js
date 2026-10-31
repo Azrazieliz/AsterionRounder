@@ -465,8 +465,12 @@ function render(){
    });
    prev.disabled=pageStart<=0;
    const forward=b('Next ›','fg-lib-page-control',()=>{
-     pageStart=Math.min((pages-1)*PAGE,pageStart+PAGE);render();body.scrollTop=0;
+     // New metadata pages can arrive after this button was created.
+     pageStart=Math.min(Math.max(0,Math.ceil(entries.length/PAGE)-1)*PAGE,
+       pageStart+PAGE);
+     render();body.scrollTop=0;
    });
+   forward.classList.add('fg-lib-page-next');
    forward.disabled=pageStart+PAGE>=shown.length;
    const input=E('input','fg-lib-page-number');
    input.type='number';input.min='1';input.max=String(pages);input.value=String(current);
@@ -477,7 +481,7 @@ function render(){
      render();body.scrollTop=0;
    };
    nav.append(prev,E('span','', 'Page '),input,
-     E('span','',' / '+pages),forward);
+     E('span','fg-lib-page-total',' / '+pages),forward);
    deck.after(nav);
    if(current>1){
      const earlier=nav.cloneNode(false);
@@ -668,6 +672,30 @@ function append(payload){
  filters.classList.remove('fg-lib-hidden');
  // Do not debounce every 96-row batch: fast cloud streams would otherwise
  // postpone the first visible page until the entire huge folder is scanned.
+ // During an unbounded cloud folder scan, keep the first rendered page
+ // stable and make the catalog immediately navigable. A full filter+sort on
+ // each incoming 100-row batch is O(totalPages × N log N) and can freeze
+ // WebView for minutes at 300K images. Sorting runs only on user navigation,
+ // filtering, or once when the scan completes.
+ if(!payload.finished && filter==='all' && !phrase.trim() &&
+    entries.length>PAGE && lastVisibleKeys){
+   count.textContent=entries.length+' · scanning… · showing '+
+       (pageStart+1)+'–'+Math.min(entries.length,pageStart+PAGE);
+   const pager=deck.nextElementSibling?.classList?.contains('fg-lib-pager')?
+       deck.nextElementSibling:null;
+   if(!pager){
+     render();lastRender=Date.now();
+   }else{
+     const total=Math.ceil(entries.length/PAGE);
+     const text=pager.querySelector('.fg-lib-page-total');
+     if(text)text.textContent=' / '+total;
+     const pageInput=pager.querySelector('.fg-lib-page-number');
+     if(pageInput)pageInput.max=String(total);
+     const next=pager.querySelector('.fg-lib-page-next');
+     if(next)next.disabled=pageStart+PAGE>=entries.length;
+   }
+   return;
+ }
  const elapsed=Date.now()-lastRender;
  if(!lastRender||payload.finished||elapsed>=240){
    if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
