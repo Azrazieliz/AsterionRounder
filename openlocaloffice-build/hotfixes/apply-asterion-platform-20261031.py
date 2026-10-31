@@ -74,7 +74,14 @@ manifest.write_text(m,encoding="utf-8")
 # Open TeraBox files in their reader rather than invoking Save Document.
 js=Path("app/src/main/assets/premium-library.js")
 j=js.read_text(encoding="utf-8")
+def align_old(source, proposed):
+    if source.count(proposed)==1:return proposed
+    adjusted="\n".join(line[1:] if line.startswith("   ") else line
+                         for line in proposed.split("\n"))
+    return adjusted
+
 old='''    bridge()?.saveTeraboxFile?.(item.path,item.name);'''
+old=align_old(j,old)
 assert j.count(old)==1,("Cloud open anchor changed",j.count(old))
 j=j.replace(old,'''    bridge()?.openTeraboxFile?.(item.path,item.name);''',1)
 # Use efficient first-frame opening for huge image collections:
@@ -119,6 +126,7 @@ for cloud in (True,False):
       state.preparing=false;
       state.feed?.();
     },16);'''
+    old=align_old(j,old)
     assert j.count(old)==1, ("Image opening anchor",cloud,j.count(old))
     j=j.replace(old,new,1)
 old='''     if(imagePumpState!==state||imagePumpVersion!==state.version)return;
