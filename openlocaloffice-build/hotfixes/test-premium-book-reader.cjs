@@ -18,9 +18,12 @@ need(book.includes('get("idref")')===false&&book.includes('field(item,"idref")')
 need(book.includes('new SeekableZip(handle)'),'Must index seekable SAF ZIP without reopening or copying file');
 need(book.includes('RemoteBookSpool.obtain(context,uri,advertised,preview)')&&
      spool.includes('BufferedOutputStream(')&&spool.includes('new FileOutputStream(pending)'),
-     'Nonseekable provider must use a reusable, serialized disk spool');
-need(spool.includes('synchronized(lock)')&&spool.includes('CLOUD_SPOOL_CACHE_HIT'),
-     'Repeated opens must reuse the successful download and avoid concurrent copies');
+     'Nonseekable provider must use a serialized, transient disk spool');
+need(spool.includes('synchronized(lock)')&&
+     spool.includes('reading-volatile-v3')&&
+     spool.includes('completedFile(Context ctx,Uri uri,long expected)')&&
+     book.includes('temp=completed')&&book.includes('temporary.delete()'),
+     'Pipe-only archive scratch must be session scoped, not a persistent whole-book cache');
 need(book.includes('MAX_CHAPTER_BYTES'),'Large book chunks must remain bounded');
 need(book.includes('WebResourceResponse response('),'Illustrations must stream individually through WebView');
 need(!book.includes('new byte[(int)'),'Book may never be cast to an in-memory int array');

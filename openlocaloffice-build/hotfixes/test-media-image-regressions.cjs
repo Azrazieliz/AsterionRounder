@@ -121,10 +121,12 @@ assert(remote.includes('if(data.error&&!data.session)'),
   'Async Koikatsu pending sessions still terminate before rendering');
 assert(remote.includes("frame.hidden=true"),
   'PC viewer still shows broken-image icon instead of loading state');
-const fallbackSource=fs.readFileSync('../hotfixes/apply-image-fallback-20261031.py','utf8');
-assert(js.includes("IMAGE_NATIVE_FALLBACK_REQUESTED")&&
-  fallbackSource.includes("fgFallbackBitmap("),
-  'Broken PNG image native fallback is missing');
+assert(js.includes('IMAGE_STREAM_TIMEOUT')&&
+  js.includes('Retry image')&&
+  !js.includes('IMAGE_NATIVE_FALLBACK_REQUESTED'),
+  'Original image should remain the primary stream with explicit retry; no automatic fallback');
+assert(!main.includes('imageBytes>=12L*1024*1024?"fallback/"'),
+  'Standalone image must not default to the native JPEG fallback');
 assert(main.includes('verifyKoikatsuInBackground('),
   'Koikatsu card validation blocks PNG opening');
 assert(remote.includes('getRemoteEndpoint?.()')&&

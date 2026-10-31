@@ -24,12 +24,14 @@ need(b.includes('if(advertised>0&&physical>=0&&physical<advertised)'),
   'Known incomplete cloud files must be rejected before a second copy');
 need(b.includes('RemoteBookSpool.obtain(context,uri,advertised,preview)')&&
   spool.includes('expected>0&&copied!=expected'),
-  'Non-seekable provider transfer must be verified after the shared spool');
+  'Non-seekable provider transfer must be verified for the session-only spool');
 need(m.includes('getPersistedUriPermissions()'),'Recent references require durable SAF read grants');
 need(m.includes('sessionRecentUri'),'Temporary Round Sync document grants must be session-only');
 need(m.includes('if(!hasDurableReadGrant(saved))'),
   'Expiring cloud URIs cannot remain in permanent recent-files list');
-need(!m.includes('remember(temp'),'Temporary cache is not a persistent document reference');
+need(!m.includes('remember(temp')&&b.includes('temp=completed')&&
+     spool.includes('return null;'),
+     'Original archive files may not persist as cache or recent-file entries');
 // Simple behavioral policy equivalent, useful with numeric names in supplied ZIP.
 const names=['Book/10.webp','Book/2.webp','Book/1.webp'];
 names.sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
