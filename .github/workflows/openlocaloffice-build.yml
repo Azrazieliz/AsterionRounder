@@ -128,11 +128,17 @@ jobs:
           python3 ../hotfixes/apply-release-version-20261031.py
           cp ../additions/FgTeraboxClient.java app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
           python3 ../hotfixes/apply-direct-terabox-20261031.py
+          cp ../additions/FgTeraboxDocumentsProvider.java app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
+          python3 ../hotfixes/apply-asterion-platform-20261031.py
+          python3 ../hotfixes/apply-asterion-branding-20261031.py
           cp ../additions/FgMediaPlayer.java app/src/main/java/com/openlocal/office/core/FgMediaPlayer.java
           cp ../additions/FgGrowingMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgGrowingMediaDataSource.java
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'openTeraboxFile(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'openProxyFileDescriptor' app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
+          grep -Fq 'Asterion Files' app/src/main/assets/premium-library.js
           grep -Fq 'getTeraboxConfigured()' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'AES/GCM/NoPadding' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
           grep -Fq 'androidx.media3:media3-exoplayer:1.11.1' app/build.gradle.kts
@@ -393,7 +399,7 @@ jobs:
           gh release create "$tag" openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
-            --title "File Gestioner signed release candidate ${{ github.run_number }}" \
+            --title "Asterion Files signed release candidate ${{ github.run_number }}" \
             --notes "Signed release candidate using the preserved File Gestioner signing certificate. Device regression testing required before production rollout." \
             --prerelease
 

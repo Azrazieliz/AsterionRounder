@@ -76,7 +76,7 @@ public final class FgTeraboxClient {
             return false;
         }
     }
-    public synchronized void disconnect(){prefs.edit().remove("ndus").remove("iv").apply();}
+    public synchronized void disconnect(){linkCache.clear();thumbUrls.clear();prefs.edit().remove("ndus").remove("iv").apply();}
     public boolean configured(){return prefs.contains("ndus")&&prefs.contains("iv");}
     private String cookie() throws Exception{
         String ciphertext=prefs.getString("ndus",null);
@@ -157,7 +157,7 @@ public final class FgTeraboxClient {
         if(rows==null)throw new IOException("TeraBox did not return a file list");
         for(int i=0;i<rows.length();i++){
             JSONObject item=rows.optJSONObject(i);
-            if(item==null||item.optInt("isdir",0)!=0)continue;
+            if(item==null||item.optInt("isdir",0)==1)continue;
             JSONObject thumbs=item.optJSONObject("thumbs");
             if(thumbs==null)continue;
             String url=thumbs.optString("url3",thumbs.optString("url2",""));
@@ -178,10 +178,90 @@ public final class FgTeraboxClient {
         if(details.optInt("errno",0)!=0)throw new IOException("TeraBox file is inaccessible");
         return details;
     }
-    public InputStream open(String path) throws Exception{
+    private static final class Link {
+        final String url;
+        final long timestamp;
+        Link(String url,long timestamp){this.url=url;this.timestamp=timestamp;}
+    }
+    private final Map<String,Link> linkCache=Collections.synchronizedMap(
+        new LinkedHashMap<String,Link>(64,0.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<String,Link> entry){
+                return size()>128;
+            }
+        });
+    private String liveLink(String path) throws Exception{
+        path=safePath(path);
+        Link cached=linkCache.get(path);
+        long now=android.os.SystemClock.elapsedRealtime();
+        if(cached!=null&&now-cached.timestamp<45000)return cached.url;
         String link=fileDetails(path).optString("dlink","");
         if(!link.startsWith("https://"))
-            throw new IOException("TeraBox did not provide a secure download URL");
+            throw new IOException("TeraBox has not supplied an HTTPS file stream");
+        linkCache.put(path,new Link(link,now));
+        return link;
+    }
+    /**
+     * Read exactly a bounded region of a TeraBox file, without a whole-file
+     * temp copy. HTTP 206 and the matching Content-Range are mandatory for
+     * nonzero offsets. This is the random-access contract used by Android's
+     * DocumentsProvider for PDF, ZIP64, video and image decoders.
+     */
+    public byte[] readRange(String path,long offset,int requested) throws Exception{
+        if(offset<0||requested<1||requested>1024*1024)
+            throw new IllegalArgumentException("Invalid byte range");
+        String safe=safePath(path);
+        for(int attempt=0;attempt<2;attempt++){
+            URL url=new URL(liveLink(safe));
+            for(int redirect=0;redirect<7;redirect++){
+                if(!"https".equalsIgnoreCase(url.getProtocol()))
+                    throw new IOException("Insecure TeraBox range redirect");
+                HttpURLConnection c=(HttpURLConnection)url.openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(9000);c.setReadTimeout(30000);
+                c.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android) AppleWebKit/537.36");
+                c.setRequestProperty("Referer","https://www.terabox.com/");
+                c.setRequestProperty("Range","bytes="+offset+"-"+(offset+requested-1));
+                c.setRequestProperty("Accept-Encoding","identity");
+                String host=url.getHost().toLowerCase(Locale.ROOT);
+                if(host.equals("terabox.com")||host.endsWith(".terabox.com")||
+                   host.equals("dubox.com")||host.endsWith(".dubox.com"))
+                    c.setRequestProperty("Cookie",cookie());
+                try{
+                    int status=c.getResponseCode();
+                    if(status>=300&&status<400){
+                        String location=c.getHeaderField("Location");
+                        if(location==null||location.isEmpty())throw new IOException("Missing redirect");
+                        url=new URL(url,location);
+                        continue;
+                    }
+                    if((status==403||status==401)&&attempt==0){
+                        linkCache.remove(safe);
+                        break;
+                    }
+                    if(status!=206 && !(status==200&&offset==0))
+                        throw new IOException("TeraBox range unsupported (HTTP "+status+")");
+                    if(status==206){
+                        String range=c.getHeaderField("Content-Range");
+                        if(range==null||!range.startsWith("bytes "+offset+"-"))
+                            throw new IOException("TeraBox returned an incorrect byte range");
+                    }
+                    try(InputStream in=c.getInputStream();
+                        ByteArrayOutputStream bytes=new ByteArrayOutputStream(requested)){
+                        byte[] buffer=new byte[32768];
+                        while(bytes.size()<requested){
+                            int n=in.read(buffer,0,Math.min(buffer.length,requested-bytes.size()));
+                            if(n<0)break;
+                            if(n>0)bytes.write(buffer,0,n);
+                        }
+                        return bytes.toByteArray();
+                    }
+                }finally{c.disconnect();}
+            }
+        }
+        throw new IOException("TeraBox access denied or too many redirects");
+    }
+    public InputStream open(String path) throws Exception{
+        String link=liveLink(path);
         URL url=new URL(link);
         for(int redirect=0;redirect<7;redirect++){
             if(!"https".equalsIgnoreCase(url.getProtocol()))
@@ -225,7 +305,7 @@ public final class FgTeraboxClient {
      */
     public InputStream openThumbnail(String path) throws Exception{
         String thumb=thumbUrls.get(safePath(path));
-        if(thumb==null||thumb.isEmpty())return open(path);
+        if(thumb==null||thumb.isEmpty())throw new IOException("No server thumbnail available");
         URL target=new URL(thumb);
         if(!target.getProtocol().equals("https"))
             throw new IOException("Unsecured thumbnail URL rejected");
