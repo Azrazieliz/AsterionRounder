@@ -242,6 +242,21 @@ t=t.replace(anchor,''' // Playlist follows the currently visible folder and neve
 t=t.replace('bridge()?.openTeraboxFile?.(item.path,item.name);',
             'bridge()?.openTeraboxFile?.(item.path,item.name,Number(item.size)||-1);',1)
 js.write_text(t)
+# Keep EPUB's title and control buttons entirely below Android's status bar.
+# Other reader controls remain untouched.
+style=root/'assets/style.css'
+st=style.read_text(encoding='utf-8')
+st += """
+/* Asterion Rounder - measured Android 17 EPUB header inset */
+.fg-book:not(.fg-book-chrome-hidden) .fg-book-top:not(.fg-book-chrome-hidden){
+  padding-top:max(34px, env(safe-area-inset-top, 0px))!important;
+  box-sizing:border-box!important;
+}
+.fg-book-top .fg-book-heading{min-width:0;overflow:hidden}
+.fg-book-top .fg-book-name{display:block;overflow:hidden;text-overflow:ellipsis}
+.fg-book-top .fg-book-author{display:block;overflow:hidden;text-overflow:ellipsis}
+"""
+style.write_text(st,encoding='utf-8')
 # Version for new private candidate, same package and certificate.
 gradle=Path("app/build.gradle.kts")
 s=gradle.read_text()

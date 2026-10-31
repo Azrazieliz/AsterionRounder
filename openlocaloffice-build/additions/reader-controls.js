@@ -201,7 +201,7 @@ function renderImageFolder(data){
        window.AndroidBridge?.verifyCurrentKoikatsuCard?.();
      }
    });
- koikatsu.classList.add('fg-image-koikatsu fg-koikatsu-float');
+ koikatsu.classList.add('fg-image-koikatsu','fg-koikatsu-float');
  const cardCandidate=pages.some(p=>/\.png$/i.test(p?.name||''));
  koikatsu.hidden=!cardCandidate;
  koikatsu.dataset.verified=data.koikatsuCard===true?'true':'false';
