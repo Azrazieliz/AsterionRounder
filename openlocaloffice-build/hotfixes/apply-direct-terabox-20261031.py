@@ -31,14 +31,19 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
     private final java.util.concurrent.atomic.AtomicInteger fgTbNextIndex=
         new java.util.concurrent.atomic.AtomicInteger();
     private volatile String fgTbSelectedPath=null;
-    private final java.util.concurrent.ConcurrentHashMap<String,String> fgTbCoverIds=
-        new java.util.concurrent.ConcurrentHashMap<>();
+    // Stateless, stable cover URLs prevent hundreds of thousands of duplicated
+    // native map entries and let the WebView reuse existing cached thumbnails.
+    private static String fgTbCoverId(String path){
+        return android.util.Base64.encodeToString(
+            path.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+            android.util.Base64.NO_PADDING);
+    }
 
     private void listTeraboxNative(String folder){
         final String requested=folder==null?"":folder;
         if(!requested.isEmpty()&&!requested.startsWith("/"))return;
         final long version=fgTbVersion.incrementAndGet();
-        fgTbCoverIds.clear();
         fgDirectoryExecutor.execute(()->{
             final long start=android.os.SystemClock.elapsedRealtime();
             // Four metadata requests in flight maximum. Images themselves
@@ -78,9 +83,8 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
                             String path=mapped.optString("path","");
                             if(!mapped.optBoolean("folder")&&
                                com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))){
-                                String id=java.util.UUID.randomUUID().toString();
-                                fgTbCoverIds.put(id,path);
-                                mapped.put("cover","https://fg-assets.invalid/tb-cover/"+id);
+                                mapped.put("cover","https://fg-assets.invalid/tb-cover/"+
+                                    fgTbCoverId(path));
                                 mapped.put("remoteCover",true);
                             }
                             batch.put(mapped);
@@ -195,11 +199,16 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
         }
     }
     private WebResourceResponse fgTbCover(Uri source){
-        String id=source.getPath().substring("/tb-cover/".length());
-        String path=fgTbCoverIds.get(id);
-        if(path==null)return new WebResourceResponse("image/jpeg",null,
+        String id=source.getLastPathSegment();
+        if(id==null||id.length()>8192)return new WebResourceResponse("image/jpeg",null,
             new ByteArrayInputStream(new byte[0]));
-        try{return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));}
+        try{
+            String path=new String(android.util.Base64.decode(id,
+                android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+                android.util.Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8);
+            if(!path.startsWith("/"))throw new IOException("Invalid cloud cover path");
+            return new WebResourceResponse("image/jpeg",null,tb().openThumbnail(path));
+        }
         catch(Exception problem){
             android.util.Log.w("FG_TERA","Thumbnail error: "+
                 problem.getClass().getSimpleName());
