@@ -24,7 +24,7 @@ const tbBtn=b('TeraBox','fg-lib-secondary',()=>{
  if(bridge()?.getTeraboxConfigured?.())show();
  else showTeraboxSettings();
 });
-tbBtn.title='Native cloud browsing — no RoundSync required';
+tbBtn.title='Secure native TeraBox storage';
 actions.append(openBtn,collectionBtn,tbBtn);header.append(brand,actions);
 const welcome=E('section','fg-lib-welcome');
 const kicker=E('p','fg-lib-kicker','OFFLINE READING');
@@ -126,14 +126,14 @@ function openBook(item){
    bridge()?.saveTeraboxFile?.(item.path,item.name);
  }else if(classify(item)==='image' && bridge()?.beginImageCollection){
    // The library already has the siblings' SAF URIs. Reusing them avoids
-   // a second expensive Round Sync directory query (or a failed cloud scan).
+   // a second expensive Android storage query (or a failed scan).
    const siblings=entries.filter(x=>!x.folder&&classify(x)==='image')
      .sort((a,b)=>naturalCollator.compare(a.name,b.name));
    const version=++imagePumpVersion;
    imagePumpState={version,siblings,known:new Set(siblings.map(x=>x.path||x.uri)),
      offset:0,started:false,live:scanning,folder:currentFolder,paused:false,feed:null};
    // Native loads the viewer first. It notifies us after installing the
-   // image-reader callback, so no early Round Sync batch can be lost.
+   // image-reader callback, so no early storage batch can be lost.
    bridge().beginImageCollection(item.uri);
  }else if(classify(item)==='image' && bridge()?.openImageInFolder){
    bridge().openImageInFolder(currentFolder,item.uri);
@@ -226,7 +226,7 @@ function fileProperties(item){
   ['Type',item.folder?'Folder':label(item)],
   ['Size',item.folder?'—':formatSize(item.size)||'Unknown'],
   ['Modified',item.modified?new Date(item.modified).toLocaleString():'Unknown'],
-  ['Provider',/de\.felixnuesse\.extract\.vcp/.test(item.uri||'')?'Round Sync':'Storage provider'],
+  ['Provider',/com\.openlocal\.office\.terabox\.documents/.test(item.uri||'')?'TeraBox':'Android storage'],
   ['MIME',item.mime||'Not reported']
  ];
  for(const [key,value] of data)dl.append(E('dt','',key),E('dd','',value));
@@ -237,7 +237,7 @@ function showFileActions(item){
  if(item.terabox){
    const sheet=fileSheet(item.name,(item.folder?'TeraBox folder':'TeraBox · '+formatSize(item.size)));
    fileAction(sheet,item.folder?'Browse folder':'Open file',
-      'Cloud content without RoundSync',()=>{closeFileActions();openBook(item);});
+      'Cloud content opened directly',()=>{closeFileActions();openBook(item);});
    if(!item.folder)fileAction(sheet,'Download to…',
       'Choose a destination; original remains in your cloud account',
       ()=>{closeFileActions();bridge()?.saveTeraboxFile?.(item.path,item.name);});
@@ -553,7 +553,7 @@ function showTeraboxSettings(){
  heading.textContent='Native TeraBox';
  const panel=E('div','fg-tb-setup');
  const head=E('h2','','Connect your TeraBox');
- const desc=E('p','','Paste your ndus session cookie. It stays encrypted on this phone. Direct cloud browsing works without RoundSync or a PC.');
+ const desc=E('p','','Paste your ndus session cookie. It stays encrypted on this phone. TeraBox browsing works directly on this phone.');
  const input=E('input','fg-tb-cookie');
  input.type='password';input.autocomplete='off';input.spellcheck=false;
  input.placeholder='ndus cookie';input.setAttribute('aria-label','TeraBox ndus cookie');
@@ -756,7 +756,7 @@ search.addEventListener('input',()=>{phrase=search.value;pageStart=0;render();})
 const homeNav=b('Library','fg-lib-top-link',show);
 homeNav.title='Open your library';
 document.querySelector('.bar .actions')?.prepend(homeNav);
-// Document opens from the Files picker, Round Sync and direct share intents
+// Document opens from the Files picker and direct share intents
 // must enter the same reader state as a library-card click.
 const upstreamLoad=window.loadDocument;
 window.loadDocument=function(payload){
@@ -783,7 +783,7 @@ function handleAndroidBack(){
    return false;
  }
  // Return to the actual library, regardless of whether the source was
- // opened through Round Sync, Files, or a collection tile.
+ // opened through Android Files or a collection tile.
  show();
  bridge()?.readerDiagnostic?.('BACK_TO_LIBRARY');
  return true;
