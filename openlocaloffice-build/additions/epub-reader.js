@@ -145,6 +145,8 @@ function epub(doc){
       const chapter=el('article','fg-book-article');
       chapter.appendChild(chapterFragment(data.html||'',data.base));
       nodes[i].replaceChildren(chapter);
+      if((chapter.textContent||'').trim().length||chapter.querySelector('img'))
+        bridge?.readerDiagnostic?.('EPUB_CHAPTER_RENDERED');
       loaded.add(i);
       if(nodes[i].offsetHeight>0)heights.set(i,nodes[i].offsetHeight);
       if(restoreMark&&restoreMark.chapter===i){

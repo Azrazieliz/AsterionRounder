@@ -33,7 +33,7 @@ wait_for_log() {
   return 1
 }
 
-adb install -r openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk
+adb install -r "${FG_QA_APK:-openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk}"
 adb logcat -c
 adb shell am start -n com.openlocal.office/.MainActivity
 wait_for_log FG_READER_UI 'LIBRARY_READY' 90
@@ -46,6 +46,7 @@ adb shell run-as com.openlocal.office mkdir -p files
 adb exec-in run-as com.openlocal.office sh -c 'cat > files/fg-large-book.epub' < /tmp/fg-large-book.epub
 adb shell am start -n com.openlocal.office/.MainActivity -a android.intent.action.VIEW -t application/epub+zip -d file:///data/user/0/com.openlocal.office/files/fg-large-book.epub
 wait_for_log FG_BOOK 'EPUB_READY chapters=[1-9][0-9]* illustrations=[0-9]+' 120
+wait_for_log FG_READER_UI 'EPUB_CHAPTER_RENDERED' 120
 adb exec-out screencap -p > screenshots/fg-86mib-epub.png
 adb shell input keyevent KEYCODE_BACK
 wait_for_log FG_READER_UI 'BACK_TO_LIBRARY' 45

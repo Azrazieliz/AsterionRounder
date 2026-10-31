@@ -197,6 +197,7 @@ jobs:
           node --check app/src/main/assets/app.js
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-media-image-regressions.cjs
+          node ../hotfixes/test-rounder-end-to-end-contract.cjs
           python3 -m py_compile ../hotfixes/apply-reading-platform-20261030.py ../hotfixes/apply-reader-controls-20261030.py
           node --check app/src/main/assets/reader-controls.js
           grep -Fq 'openFolderImages' app/src/main/java/com/openlocal/office/MainActivity.java
@@ -372,6 +373,39 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      # A test-only internal APK is used solely by the Android emulator.
+      # The distributable remains a release APK signed with the preserved key.
+      - name: Build emulator-only test APK (never distribute)
+        working-directory: openlocaloffice-build/project
+        run: gradle --no-daemon --max-workers=2 assembleDebug
+
+      - name: Enable emulator acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android 16 runtime validation — EPUB, archive, navigation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 1200
+          disable-animations: true
+          script: FG_QA_APK=openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
+
+      - name: Upload runtime evidence even after a failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-Gestioner-android-runtime-evidence
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Validate existing release signing credentials
         shell: bash
         env:
@@ -444,29 +478,3 @@ jobs:
             --notes "Signed release candidate using the preserved File Gestioner signing certificate. Device regression testing required before production rollout." \
             --prerelease
 
-      - name: Enable emulator acceleration
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Android 16 runtime validation — EPUB, archive, navigation
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          arch: x86_64
-          profile: pixel_6
-          emulator-boot-timeout: 1200
-          disable-animations: true
-          script: bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
-
-      - name: Upload runtime evidence even after a failure
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: File-Gestioner-android-runtime-evidence
-          path: screenshots/
-          if-no-files-found: warn
-          retention-days: 7
