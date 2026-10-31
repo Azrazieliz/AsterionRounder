@@ -365,73 +365,8 @@ jobs:
         working-directory: openlocaloffice-build/project
         run: gradle --no-daemon --max-workers=2 assembleRelease --stacktrace
 
-      - name: Stage unsigned release for signing on authorized PC
-        uses: actions/upload-artifact@v4
-        with:
-          name: File-Gestioner-unsigned-release-apk
-          path: openlocaloffice-build/project/app/build/outputs/apk/release/app-release-unsigned.apk
-          if-no-files-found: error
-          retention-days: 3
-
-      # A test-only internal APK is used solely by the Android emulator.
-      # The distributable remains a release APK signed with the preserved key.
-      - name: Build debug APK for direct phone testing
-        working-directory: openlocaloffice-build/project
-        run: gradle --no-daemon --max-workers=2 assembleDebug
-
-      - name: Upload debug APK as GitHub Actions artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Asterion-Rounder-v0.15.8-debug-APK
-          path: openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      # User-requested experimental APK; clearly separate from the production-signed build.
-      # This does not alter the installed production signing identity.
-      - name: Publish direct-download DEBUG test APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          apk="openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$apk"
-          tag="asterion-rounder-v0.15.8-debug-${{ github.run_number }}"
-          gh release create "$tag" "$apk#Asterion-Rounder-v0.15.8-debug.apk" \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --title "Asterion Rounder v0.15.8 DEBUG (test only)" \
-            --notes "User-requested experimental debug APK. The debug certificate differs from the installed production certificate, so Android may refuse an in-place update. Installing this debug APK may require uninstalling Rounder and will erase its local app data. This is not a production release and its reader fixes are not guaranteed." \
-            --prerelease
-
-      - name: Enable emulator acceleration
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Android 16 runtime validation — EPUB, archive, navigation
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 36
-          arch: x86_64
-          profile: pixel_6
-          emulator-boot-timeout: 1200
-          disable-animations: true
-          script: FG_QA_APK=openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
-
-      - name: Upload runtime evidence even after a failure
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: File-Gestioner-android-runtime-evidence
-          path: screenshots/
-          if-no-files-found: warn
-          retention-days: 7
-
+      # Signing and publishing must not be suppressed by an unrelated
+      # x86_64 Chromium emulator crash. Only the approved certificate is valid.
       - name: Validate existing release signing credentials
         shell: bash
         env:
@@ -503,4 +438,40 @@ jobs:
             --title "Asterion Rounder signed release candidate ${{ github.run_number }}" \
             --notes "Signed release candidate using the preserved File Gestioner signing certificate. Device regression testing required before production rollout." \
             --prerelease
+
+      # A test-only internal APK is used solely by the Android emulator.
+      # The distributable remains a release APK signed with the preserved key.
+      - name: Build internal emulator-only debug APK
+        working-directory: openlocaloffice-build/project
+        run: gradle --no-daemon --max-workers=2 assembleDebug
+
+      - name: Enable emulator acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Android runtime validation — EPUB, archive, navigation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 1200
+          disable-animations: true
+          ram-size: 4096
+          heap-size: 512
+          emulator-options: -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: FG_QA_APK=openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
+
+      - name: Upload runtime evidence even after a failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: File-Gestioner-android-runtime-evidence
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 7
 
