@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native, Keystore-backed TeraBox cloud browsing, file downloads and image paging.
 
-No dependency on RoundSync, desktop rclone, or ADB. Keep original SAF library,
+No dependency on desktop services or ADB. Keep original SAF library,
 production package, and its signing identity untouched.
 """
 from pathlib import Path
