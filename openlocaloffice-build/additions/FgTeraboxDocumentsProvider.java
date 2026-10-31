@@ -62,12 +62,32 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         return t;
     });
     private final Object foldersLock=new Object();
-    private final Map<String,ArrayList<JSONObject>> folderRows=new HashMap<>();
-    private final Map<String,JSONObject> knownItems=new HashMap<>();
+    // Keep only recently browsed picker groups; a 300K-file library must not
+    // retain every discovered SAF cursor and metadata row on the Java heap.
+    private final Map<String,ArrayList<JSONObject>> folderRows=
+        new LinkedHashMap<String,ArrayList<JSONObject>>(32,0.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<String,ArrayList<JSONObject>> eldest){
+                if(size()<=24)return false;
+                listed.remove(eldest.getKey());
+                folderHasNext.remove(eldest.getKey());
+                retryAfter.remove(eldest.getKey());
+                return true;
+            }
+        };
+    private final Map<String,JSONObject> knownItems=
+        new LinkedHashMap<String,JSONObject>(5120,0.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<String,JSONObject> eldest){
+                return size()>6000;
+            }
+        };
+    private final Set<String> folderHasNext=new HashSet<>();
     private final Set<String> listingInProgress=new HashSet<>();
     private final Set<String> listed=new HashSet<>();
     private final Map<String,Long> retryAfter=new HashMap<>();
-    private static final int SAF_MAX_VISIBLE=450;
+    // Android Files uses non-paged cursors; expose bounded continuation folders
+    // instead of silently truncating after 450 entries.
+    private static final int SAF_PAGES_PER_GROUP=4;
+    private static final int SAF_MAX_VISIBLE=SAF_PAGES_PER_GROUP*100;
     // Custom queryArgs understood by AsterionCore, not by the system picker.
     public static final String PAGE_OFFSET="asterion.page.offset";
     public static final String PAGE_LIMIT="asterion.page.limit";
@@ -97,10 +117,42 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             android.util.Base64.NO_PADDING);
         return DocumentsContract.buildDocumentUri(AUTHORITY,"tb2:"+encoded+"."+size);
     }
+    private static boolean isContinuation(String documentId){
+        return documentId!=null&&documentId.startsWith("tbmore:");
+    }
+    private static int firstPage(String documentId)throws IOException{
+        if(!isContinuation(documentId))return 1;
+        try{
+            int stop=documentId.indexOf(':',"tbmore:".length());
+            int page=Integer.parseInt(documentId.substring("tbmore:".length(),stop));
+            if(page<2||page>100000||((page-1)%SAF_PAGES_PER_GROUP)!=0)
+                throw new IOException("Invalid continuation page");
+            return page;
+        }catch(IndexOutOfBoundsException|NumberFormatException error){
+            throw new IOException("Invalid continuation identifier",error);
+        }
+    }
+    private static String continuationId(String path,int page){
+        String encoded=android.util.Base64.encodeToString(
+            path.getBytes(StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+            android.util.Base64.NO_PADDING);
+        return "tbmore:"+page+":"+encoded;
+    }
     private static String path(String docId) throws IOException {
         if(docId==null)throw new IOException("Missing TeraBox document ID");
         String p;
-        if(docId.startsWith("tb2:")){
+        if(isContinuation(docId)){
+            firstPage(docId);
+            int split=docId.indexOf(':',"tbmore:".length());
+            try{
+                p=new String(android.util.Base64.decode(docId.substring(split+1),
+                    android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP),
+                    StandardCharsets.UTF_8);
+            }catch(IllegalArgumentException ex){
+                throw new IOException("Invalid continuation folder",ex);
+            }
+        }else if(docId.startsWith("tb2:")){
             int split=docId.lastIndexOf('.');
             if(split<=4)throw new IOException("Malformed TeraBox document ID");
             try{
@@ -178,11 +230,25 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             item.optLong("server_mtime", 0) * 1000L);
         add(row, rows, DocumentsContract.Document.COLUMN_FLAGS, 0);
     }
+    private void addContinuation(MatrixCursor rows,String folder,int page){
+        MatrixCursor.RowBuilder row=rows.newRow();
+        add(row,rows,DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            continuationId(folder,page));
+        add(row,rows,DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            "More files · "+((page-1)*FgTeraboxClient.pageSize()+1)+" onward");
+        add(row,rows,DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.MIME_TYPE_DIR);
+        add(row,rows,DocumentsContract.Document.COLUMN_FLAGS,0);
+    }
     @Override public Cursor queryDocument(String documentId, String[] projection)
             throws java.io.FileNotFoundException {
         MatrixCursor rows = new MatrixCursor(projection == null ? DOC_COLUMNS : projection);
         try {
             String p = path(documentId);
+            if(isContinuation(documentId)){
+                addContinuation(rows,p,firstPage(documentId));
+                return rows;
+            }
             if ("/".equals(p)) {
                 addDocument(rows,new JSONObject().put("isdir",1)
                     .put("server_filename","TeraBox"),"/");
@@ -349,21 +415,28 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         MatrixCursor rows=new MatrixCursor(projection==null?DOC_COLUMNS:projection);
         try{
             String folder=path(parentDocumentId);
+            int page=firstPage(parentDocumentId);
+            String group=folder+"#"+page;
             ArrayList<JSONObject> snapshot;
             boolean loading;
+            boolean hasNext;
             synchronized(foldersLock){
-                ArrayList<JSONObject> existing=folderRows.get(folder);
+                ArrayList<JSONObject> existing=folderRows.get(group);
                 snapshot=existing==null?new ArrayList<>():new ArrayList<>(existing);
-                loading=!listed.contains(folder);
-                long retry=retryAfter.getOrDefault(folder,0L);
+                loading=!listed.contains(group);
+                hasNext=folderHasNext.contains(group);
+                long retry=retryAfter.getOrDefault(group,0L);
                 if(loading && android.os.SystemClock.elapsedRealtime()>=retry &&
-                   listingInProgress.add(folder))
-                    listingWorker.execute(()->fetchChildren(folder));
+                   listingInProgress.add(group))
+                    listingWorker.execute(()->fetchChildren(folder,page,parentDocumentId,group));
             }
             for(JSONObject item:snapshot){
                 String p=item.optString("path","");
                 if(p.startsWith("/"))addDocument(rows,item,p);
             }
+            // SAF cursors cannot contain 300K rows. The next group appears
+            // as a real, navigable folder once the current group completes.
+            if(hasNext)addContinuation(rows,folder,page+SAF_PAGES_PER_GROUP);
             Bundle extras=new Bundle();
             extras.putBoolean(DocumentsContract.EXTRA_LOADING,loading);
             rows.setExtras(extras);
@@ -372,43 +445,44 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             return rows;
         }catch(Exception ex){throw unavailable(ex);}
     }
-    private void fetchChildren(String folder){
-        final Uri uri=DocumentsContract.buildChildDocumentsUri(AUTHORITY,"tb:"+folder);
+    private void fetchChildren(String folder,int firstPage,String documentId,String group){
+        final Uri uri=DocumentsContract.buildChildDocumentsUri(AUTHORITY,documentId);
         boolean success=false;
+        boolean continuation=false;
         try{
-            // The native library offers full pagination. This SAF adapter
-            // deliberately caps a Binder cursor below Android's transaction
-            // limit and never blocks a system thread for network traversal.
-            for(int page=1;page<=5;page++){
-                JSONArray batch=client.listPage(folder,page);
+            // Four 100-item metadata pages per group, asynchronously
+            // notifying the Android picker after every successful page.
+            for(int page=firstPage;page<firstPage+SAF_PAGES_PER_GROUP;page++){
+                JSONArray batch=client.listPageCached(folder,page);
                 synchronized(foldersLock){
-                    ArrayList<JSONObject> rows=folderRows.computeIfAbsent(folder,k->new ArrayList<>());
+                    ArrayList<JSONObject> rows=folderRows.computeIfAbsent(group,k->new ArrayList<>());
                     for(int i=0;i<batch.length() && rows.size()<SAF_MAX_VISIBLE;i++){
                         JSONObject item=batch.optJSONObject(i);
                         if(item==null)continue;
                         String p=item.optString("path","");
-                        if(!p.startsWith("/")||knownItems.containsKey(p))continue;
+                        if(!p.startsWith("/"))continue;
                         rows.add(item);
                         knownItems.put(p,item);
                     }
                 }
                 getContext().getContentResolver().notifyChange(uri,null);
                 if(batch.length()<FgTeraboxClient.pageSize())break;
+                if(page==firstPage+SAF_PAGES_PER_GROUP-1)continuation=true;
             }
             success=true;
         }catch(Exception ex){
             android.util.Log.w("FG_TERA_PROVIDER","Cloud listing deferred: "+ex.getClass().getSimpleName());
         }finally{
             synchronized(foldersLock){
-                listingInProgress.remove(folder);
+                listingInProgress.remove(group);
                 if(success){
-                    listed.add(folder);
-                    retryAfter.remove(folder);
+                    listed.add(group);
+                    if(continuation)folderHasNext.add(group);
+                    else folderHasNext.remove(group);
+                    retryAfter.remove(group);
                 }else{
-                    // An offline/failed cloud listing must remain retriable,
-                    // not be permanently cached as an empty directory.
-                    listed.remove(folder);
-                    retryAfter.put(folder,
+                    listed.remove(group);
+                    retryAfter.put(group,
                         android.os.SystemClock.elapsedRealtime()+5000L);
                 }
             }
@@ -418,13 +492,16 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
     @Override public boolean isChildDocument(String parentDocumentId, String documentId) {
         try {
             String parent = path(parentDocumentId), child = path(documentId);
+            if(isContinuation(documentId))
+                return parent.equals(child)&&firstPage(documentId)>firstPage(parentDocumentId);
             return child.startsWith(parent.equals("/") ? "/" : parent + "/") && !child.equals(parent);
         } catch (IOException ignored) { return false; }
     }
     @Override public String getDocumentType(String documentId) throws java.io.FileNotFoundException {
         try{
             String p=path(documentId);
-            if("/".equals(p))return DocumentsContract.Document.MIME_TYPE_DIR;
+            if("/".equals(p)||isContinuation(documentId))
+                return DocumentsContract.Document.MIME_TYPE_DIR;
             JSONObject item;
             synchronized(foldersLock){item=knownItems.get(p);}
             if(item!=null && item.optInt("isdir",0)!=0)
@@ -436,6 +513,7 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             throws java.io.FileNotFoundException {
         if (!"r".equals(mode)) throw new java.io.FileNotFoundException("Cloud provider is read-only");
         try {
+            if(isContinuation(documentId))throw new IOException("Cannot open a pagination folder as a file");
             String cloudPath = path(documentId);
             long size=hintedLength(documentId);
             if(size<0){
