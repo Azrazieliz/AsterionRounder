@@ -6,6 +6,11 @@ import sys,math,pathlib,traceback
 argv=sys.argv[sys.argv.index("--")+1:]
 kind,source,target=argv[:3]
 yaw,pitch,distance=map(float,argv[3:6])
+# Optional camera pan and output dimensions. Blender meshes remain untouched.
+pan_x=float(argv[6]) if len(argv)>6 else 0
+pan_y=float(argv[7]) if len(argv)>7 else 1.25
+width=min(1200,max(240,int(argv[8]))) if len(argv)>8 else 680
+height=min(1920,max(240,int(argv[9]))) if len(argv)>9 else 800
 import bpy
 from mathutils import Vector
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -29,11 +34,13 @@ for obj in meshes:
     for corner in obj.bound_box:
         points.append(obj.matrix_world @ Vector(corner))
 center=sum(points,Vector((0,0,0)))/len(points)
+# Translate only the camera orbit target, never the mesh or rig.
+center+=Vector((pan_x,0,pan_y-1.25))
 extent=max(max((p-center).length for p in points),0.1)
 scene=bpy.context.scene
 scene.render.engine="BLENDER_EEVEE"
-scene.render.resolution_x=680
-scene.render.resolution_y=800
+scene.render.resolution_x=width
+scene.render.resolution_y=height
 scene.render.resolution_percentage=100
 scene.render.image_settings.file_format="JPEG"
 scene.render.image_settings.quality=78
