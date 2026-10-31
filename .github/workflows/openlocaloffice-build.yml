@@ -362,6 +362,7 @@ jobs:
           python3 ../hotfixes/normalize-release-icons.py
 
       - name: Build release APK
+        id: release_build
         working-directory: openlocaloffice-build/project
         run: gradle --no-daemon --max-workers=2 assembleRelease --stacktrace
 
@@ -442,10 +443,13 @@ jobs:
       # A test-only internal APK is used solely by the Android emulator.
       # The distributable remains a release APK signed with the preserved key.
       - name: Build internal emulator-only debug APK
+        if: ${{ always() && steps.release_build.outcome == 'success' }}
+        id: emulator_build
         working-directory: openlocaloffice-build/project
         run: gradle --no-daemon --max-workers=2 assembleDebug
 
       - name: Enable emulator acceleration
+        if: ${{ always() && steps.emulator_build.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -454,6 +458,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Android runtime validation — EPUB, archive, navigation
+        if: ${{ always() && steps.emulator_build.outcome == 'success' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
