@@ -60,6 +60,7 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
     private final Map<String,JSONObject> knownItems=new HashMap<>();
     private final Set<String> listingInProgress=new HashSet<>();
     private final Set<String> listed=new HashSet<>();
+    private final Map<String,Long> retryAfter=new HashMap<>();
     private static final int SAF_MAX_VISIBLE=450;
 
 
@@ -190,7 +191,9 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
                 ArrayList<JSONObject> existing=folderRows.get(folder);
                 snapshot=existing==null?new ArrayList<>():new ArrayList<>(existing);
                 loading=!listed.contains(folder);
-                if(loading && listingInProgress.add(folder))
+                long retry=retryAfter.getOrDefault(folder,0L);
+                if(loading && android.os.SystemClock.elapsedRealtime()>=retry &&
+                   listingInProgress.add(folder))
                     listingWorker.execute(()->fetchChildren(folder));
             }
             for(JSONObject item:snapshot){
@@ -207,6 +210,7 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
     }
     private void fetchChildren(String folder){
         final Uri uri=DocumentsContract.buildChildDocumentsUri(AUTHORITY,"tb:"+folder);
+        boolean success=false;
         try{
             // The native library offers full pagination. This SAF adapter
             // deliberately caps a Binder cursor below Android's transaction
@@ -219,7 +223,7 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
                         JSONObject item=batch.optJSONObject(i);
                         if(item==null)continue;
                         String p=item.optString("path","");
-                        if(!p.startsWith("/"))continue;
+                        if(!p.startsWith("/")||knownItems.containsKey(p))continue;
                         rows.add(item);
                         knownItems.put(p,item);
                     }
@@ -227,12 +231,22 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
                 getContext().getContentResolver().notifyChange(uri,null);
                 if(batch.length()<FgTeraboxClient.pageSize())break;
             }
+            success=true;
         }catch(Exception ex){
             android.util.Log.w("FG_TERA_PROVIDER","Cloud listing deferred: "+ex.getClass().getSimpleName());
         }finally{
             synchronized(foldersLock){
                 listingInProgress.remove(folder);
-                listed.add(folder);
+                if(success){
+                    listed.add(folder);
+                    retryAfter.remove(folder);
+                }else{
+                    // An offline/failed cloud listing must remain retriable,
+                    // not be permanently cached as an empty directory.
+                    listed.remove(folder);
+                    retryAfter.put(folder,
+                        android.os.SystemClock.elapsedRealtime()+5000L);
+                }
             }
             getContext().getContentResolver().notifyChange(uri,null);
         }

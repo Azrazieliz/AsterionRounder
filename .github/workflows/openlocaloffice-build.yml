@@ -140,6 +140,7 @@ jobs:
           cp ../additions/FgTeraboxMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java
           python3 ../hotfixes/apply-rounder-reader-repair-20261031.py
           python3 ../hotfixes/apply-rounder-final-ui-20261031.py
+          python3 ../hotfixes/apply-rounder-cloud-backpressure-20261031.py
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
@@ -163,6 +164,10 @@ jobs:
           grep -Fq 'navigateFgVideo' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'requestBookChapter' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'responseSampled' app/src/main/java/com/openlocal/office/core/BookArchive.java
+          grep -Fq 'cloudSource' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'MAX_IMAGE_FETCHES' app/src/main/assets/universal-reader.js
+          grep -Fq 'min-height:85vh' app/src/main/assets/style.css
+          grep -Fq 'retryAfter' app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
           grep -Fq 'liveLink' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
           grep -Fq 'public final class FgTeraboxMediaDataSource' app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java
           node --check app/src/main/assets/universal-reader.js

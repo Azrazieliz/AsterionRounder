@@ -477,6 +477,7 @@ function archive(){
  let entries=[];
  try{entries=JSON.parse(bridge()?.getArchiveEntries?.()||'[]');}catch(_){}
  const isComic=(doc.format==='cbz'||doc.comicMode===true)&&!doc.forceArchiveList;
+ const remoteArchive=doc.cloudSource===true;
  if(isComic){
    entries=entries.filter(e=>/\.(png|jpe?g|gif|webp|bmp|avif|heic|heif)$/i.test(e.name));
    entries.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
@@ -500,11 +501,13 @@ function archive(){
    body.appendChild(E('p','fg-reader-empty','Archive has no previewable entries.'));
    stage(bar,body);return;
  }
- function content(entry,dest){
+ function content(entry,dest,onSettled){
    dest.replaceChildren();
+   let completed=false;
+   const settle=()=>{if(completed)return;completed=true;onSettled?.();};
    if(!entry.preview){
      dest.appendChild(E('p','fg-reader-empty','This entry cannot be previewed safely.'));
-     return;
+     settle();return;
    }
    try{
      const data=entry.streamed?'':(bridge()?.getArchiveEntryBase64?.(entry.name)||'');
@@ -515,7 +518,7 @@ function archive(){
        im.loading='lazy';
        let watchdog=0;
        im.addEventListener('load',()=>{
-         clearTimeout(watchdog);
+         clearTimeout(watchdog);settle();
          if(isComic)bridge()?.readerDiagnostic?.('COMIC_IMAGE_LOADED');
        });
        im.addEventListener('error',()=>{
@@ -525,6 +528,12 @@ function archive(){
             current.includes('https://fg-assets.invalid/book/')){
            im.dataset.sampleAttempted='true';
            im.src=current.replace('/book/','/book-fallback/');
+           // The second decoder attempt has its own deadline, otherwise a
+           // hanging native sample permanently consumes a download slot.
+           watchdog=setTimeout(()=>{
+             if(im.isConnected && !(im.complete&&im.naturalWidth>0))
+               im.dispatchEvent(new Event('error'));
+           },remoteArchive?30000:15000);
            bridge()?.readerDiagnostic?.('ARCHIVE_NATIVE_SAMPLE_REQUESTED');
            return;
          }
@@ -536,6 +545,7 @@ function archive(){
          });
          retry.classList.add('fg-image-retry');
          dest.appendChild(retry);
+         settle();
          bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_FAILED');
        });
        im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
@@ -547,19 +557,22 @@ function archive(){
            im.dispatchEvent(new Event('error'));
            bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_TIMEOUT_NATIVE_FALLBACK');
          }
-       },8500);
+       },remoteArchive?30000:8500);
      }else{
        dest.appendChild(E('pre','fg-document-code',
          new TextDecoder().decode(decode(data))));
+       settle();
      }
    }catch(error){
      dest.appendChild(E('p','fg-reader-empty',
        'Cannot preview '+entry.name+': '+String(error.message||error)));
+     settle();
    }
  }
  if(isComic){
    const stack=E('div','fg-pdf-stack fg-comic-stack'),cells=[],loaded=new Map();
-   let disposed=false,observer=null,scheduled=false;
+   let disposed=false,observer=null,scheduled=false,inFlight=0;
+   const MAX_IMAGE_FETCHES=remoteArchive?2:4;
    const queue=new Set();
    const root=E('div','fg-pdf-container');
    function enqueue(i){
@@ -569,16 +582,28 @@ function archive(){
    }
    function draw(){
      scheduled=false;
-     if(disposed||!queue.size)return;
+     if(disposed||!queue.size||inFlight>=MAX_IMAGE_FETCHES)return;
      const i=queue.values().next().value;queue.delete(i);
      const frame=cells[i],rect=frame.getBoundingClientRect(),view=body.getBoundingClientRect();
-     if(rect.bottom>=view.top-2*body.clientHeight&&rect.top<=view.bottom+2*body.clientHeight){
+     if(rect.bottom>=view.top-body.clientHeight&&rect.top<=view.bottom+body.clientHeight){
        const target=E('div','fg-comic-page');
-       content(entries[i],target);
+       inFlight++;
+       let released=false;
+       const release=()=>{
+         if(released)return;released=true;
+         inFlight=Math.max(0,inFlight-1);
+         if(!disposed&&queue.size&&!scheduled){
+           scheduled=true;requestAnimationFrame(draw);
+         }
+       };
+       target.rounderRelease=release;
+       content(entries[i],target,release);
        frame.replaceChildren(target);loaded.set(i,target);
      }
      trim();
-     if(queue.size){scheduled=true;requestAnimationFrame(draw);}
+     if(queue.size&&inFlight<MAX_IMAGE_FETCHES){
+       scheduled=true;requestAnimationFrame(draw);
+     }
    }
    function trim(){
      const view=body.getBoundingClientRect();
@@ -586,6 +611,7 @@ function archive(){
        const rect=cells[i].getBoundingClientRect();
        if(rect.bottom<view.top-3*body.clientHeight||
           rect.top>view.bottom+3*body.clientHeight){
+         target.rounderRelease?.();
          target.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));
          loaded.delete(i);
          cells[i].replaceChildren(E('div','fg-pdf-skeleton','Image '+(i+1)));
@@ -604,7 +630,7 @@ function archive(){
      observer=new IntersectionObserver(items=>{
        for(const item of items)if(item.isIntersecting)
          enqueue(Number(item.target.dataset.page)-1);
-     },{root:body,rootMargin:'90% 0px'});
+     },{root:body,rootMargin:'30% 0px'});
      cells.forEach(c=>observer.observe(c));
    }
    let raf=0;
@@ -634,8 +660,10 @@ function archive(){
    activeReaderCleanup=()=>{
      disposed=true;observer?.disconnect();queue.clear();
      if(raf)cancelAnimationFrame(raf);
-     for(const cell of loaded.values())
+     for(const cell of loaded.values()){
+       cell.rounderRelease?.();
        cell.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));
+     }
      loaded.clear();
    };
  }else{
