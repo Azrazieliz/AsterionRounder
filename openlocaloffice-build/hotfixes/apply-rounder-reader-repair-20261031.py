@@ -187,8 +187,34 @@ j=j.replace(needle,'''         const nativeUrl=page.url.startsWith('https://fg-a
            page.url.startsWith('https://fg-assets.invalid/terabox-image/')?
            page.url.replace('/terabox-image/','/terabox-preview/'):
            page.url.startsWith('https://fg-assets.invalid/raw/')?''',1)
+# A JS exception during viewer construction previously left appBusy(true)
+# covering the entire app indefinitely even for an 8 KB local PNG.
+old="""   renderImageFolder(data.type==='image'?{
+     type:'folderImages',standalone:true,
+     koikatsuCard:data.koikatsuCard===true,
+     pages:[{name:data.name,url:data.url||data.src}]
+   }:data);
+   // The native openUri path shows appBusy(true) before dispatching. Since
+   // images deliberately bypass the generic document loader, clear it here.
+   window.appBusy?.(false);
+   return;"""
+assert j.count(old)==1,("image viewer error boundary missing",j.count(old))
+j=j.replace(old, """   try{
+     renderImageFolder(data.type==='image'?{
+       type:'folderImages',standalone:true,
+       koikatsuCard:data.koikatsuCard===true,
+       pages:[{name:data.name,url:data.url||data.src}]
+     }:data);
+     window.AndroidBridge?.readerDiagnostic?.('IMAGE_VIEWER_CONSTRUCTED');
+   }catch(error){
+     window.AndroidBridge?.readerDiagnostic?.('IMAGE_VIEWER_EXCEPTION:'+String(error).slice(0,190));
+     window.showError?.('Image viewer could not open: '+String(error?.message||error));
+   }finally{
+     window.appBusy?.(false);
+   }
+   return;""",1)
 reader.write_text(j)
-js=root/'assets/premium-library.js'
+js=root/'assets/premium-library.js' 
 t=js.read_text()
 # During ongoing folder enumeration, cloud files do not have a local SAF
 # URI. Deduplication must use path, not undefined URI for every item.
