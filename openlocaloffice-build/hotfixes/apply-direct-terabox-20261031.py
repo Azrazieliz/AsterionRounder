@@ -84,6 +84,8 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
             !com.openlocal.office.core.FgTeraboxClient.image(name))return;
         final String token=java.util.UUID.randomUUID().toString();
         fgTbToken=token;
+        fgImageCollectionActive=false;
+        fgSelectedCollectionImage=null;
         fgTbSelectedPath=path;
         fgTbPages.clear();fgTbKnown.clear();fgTbNextIndex.set(1);
         fgTbKnown.add(path);fgTbPages.put(0,new TbPage(path,name));
@@ -212,7 +214,29 @@ s=s.replace(anchor,'''        if(requestCode==FG_TERA_SAVE_REQUEST){
 '''+anchor,1)
 anchor='        @JavascriptInterface public void listLibrary(String folder){loadLibrary(folder);}'
 assert s.count(anchor)==1
-s=s.replace(anchor,'''        @JavascriptInterface public void verifyCurrentKoikatsuCard(){
+s=s.replace(anchor,'''        @JavascriptInterface public void selectImageCollectionPage(int index){
+            if(index<0)return;
+            if(fgTbSelectedPath!=null){
+                TbPage page=fgTbPages.get(index);
+                if(page==null||page.path.equals(fgTbSelectedPath))return;
+                fgTbSelectedPath=page.path;
+                currentUri=null;
+                fgVerifiedKoikatsuCard=null;
+                android.util.Log.i("FG_3D","SELECTED_CLOUD_PAGE="+index);
+                return;
+            }
+            if(fgImageCollectionActive){
+                FolderPage page=fgFolderPageMap.get(index);
+                if(page==null)return;
+                String next=page.uri.toString();
+                if(next.equals(fgSelectedCollectionImage))return;
+                fgSelectedCollectionImage=next;
+                fgVerifiedKoikatsuCard=null;
+                currentUri=null;
+                android.util.Log.i("FG_3D","SELECTED_SAF_PAGE="+index);
+            }
+        }
+        @JavascriptInterface public void verifyCurrentKoikatsuCard(){
             // Image collections keep their selected SAF URI independently of
             // currentUri; using currentUri here inspected the preceding file
             // (or null), leaving genuine Koikatsu PNGs without 3D controls.
@@ -281,5 +305,9 @@ s=s.replace(anchor,'''        @JavascriptInterface public void verifyCurrentKoik
             runOnUiThread(()->saveTbFile(path,name));
         }
 '''+anchor,1)
+# Prevent a local folder session from inheriting a cloud 3D verification target.
+needle='        fgSelectedCollectionImage=startUri;'
+assert needle in s
+s=s.replace(needle,'        fgTbSelectedPath=null;\n'+needle,1)
 main.write_text(s)
 print("Native direct TeraBox API: Keystore ndus, on-demand cloud pages, images, download SAF")
