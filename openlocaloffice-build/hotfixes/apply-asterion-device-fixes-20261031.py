@@ -3,16 +3,9 @@
 from pathlib import Path
 main=Path("app/src/main/java/com/openlocal/office/MainActivity.java")
 s=main.read_text()
-old='''        fgFolderPageMap.clear();
-        fgImageCollectionCount.set(0);
-        fgSelectedCollectionImage=startUri;
-        fgImageCollectionActive=true;
-        fgVerifiedKoikatsuCard=null;
-        checkCollectionKoikatsu(Uri.parse(startUri));
-        runOnUiThread(()->js("window.loadDocument({\\\"type\\\":\\\"folderImages\\\","+
-            "\\\"name\\\":\\\"Image collection\\\",\\\"pages\\\":[]})"));'''
-if s.count(old)!=1:raise RuntimeError("Missing native initial page anchor: "+str(s.count(old)))
-new='''        fgFolderPageMap.clear();
+start=s.index("        fgFolderPageMap.clear();\n        fgImageCollectionCount.set(0);")
+end=s.index("    }\n    private void appendImageCollectionChunk(",start)
+new=r'''        fgFolderPageMap.clear();
         // The selected image must appear immediately, independently of
         // expensive sibling enumeration, sorting, or JS callback scheduling.
         Uri first=Uri.parse(startUri);
@@ -36,7 +29,7 @@ new='''        fgFolderPageMap.clear();
         }catch(org.json.JSONException error){
             android.util.Log.e("FG_IMAGE","Cannot initialize image reader",error);
         }'''
-s=s.replace(old,new,1)
+s=s[:start]+new+s[end:]
 old='''                if(value.isEmpty()||name.isEmpty()||!allowedLibraryUris.contains(value))
                     continue;'''
 assert s.count(old)==1
