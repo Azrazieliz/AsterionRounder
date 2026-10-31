@@ -211,7 +211,7 @@ function renderImageFolder(data){
    by('#'+id)?.classList.add('hidden');
  let imageObserver=null,batchObserver=null,index=0,current=0,finished=Boolean(data.standalone),busy=false;
  function closeCollection(){
-   // ACTION_VIEW from Files/RoundSync should return to that app instead
+   // ACTION_VIEW from Android Files should return to the source app instead
    // of showing an empty File Gestioner library.
    window.AndroidBridge?.setImageViewing?.(false);
    if(window.AndroidBridge?.returnToExternalFile?.())return;
