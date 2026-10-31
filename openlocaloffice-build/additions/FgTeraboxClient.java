@@ -29,6 +29,8 @@ public final class FgTeraboxClient {
     private static final int PAGE=100;
     private final Context app;
     private final SharedPreferences prefs;
+    private final java.util.concurrent.atomic.AtomicInteger thumbnailWrites=
+        new java.util.concurrent.atomic.AtomicInteger();
     private final Map<String,String> thumbUrls=Collections.synchronizedMap(
         new LinkedHashMap<String,String>(1200,0.75f,true){
             @Override protected boolean removeEldestEntry(Map.Entry<String,String> oldest){
@@ -457,7 +459,9 @@ public final class FgTeraboxClient {
                     if(!cached.isFile())throw new IOException("Cannot retain private thumbnail");
                     tmp.delete();
                 }
-                pruneCovers(dir);
+                // Enumeration+sorting on EVERY new thumbnail becomes quadratic
+                // for large libraries. Maintenance is amortized over 128 writes.
+                if((thumbnailWrites.incrementAndGet()&127)==0)pruneCovers(dir);
                 return new FileInputStream(cached);
             }finally{request.disconnect();}
         }

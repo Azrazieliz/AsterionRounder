@@ -90,12 +90,14 @@ v=v.replace(old,'''if(cached.exists()&&cached.length()>0){
 # Cache disk usage remains bounded across files and restarts. Never delete originals.
 needle='            return new FileInputStream(cached);\n        }catch(InterruptedException error){'
 assert v.count(needle)==1
-v=v.replace(needle,'''            prunePersistentCovers(dir);
+v=v.replace(needle,'''            if((coverWrites.incrementAndGet()&127)==0)prunePersistentCovers(dir);
             return new FileInputStream(cached);
         }catch(InterruptedException error){''',1)
 anchor='    private static boolean isArchive(String filename){'
 assert v.count(anchor)==1
-v=v.replace(anchor,'''    private static void prunePersistentCovers(File folder){
+v=v.replace(anchor,'''    private static final java.util.concurrent.atomic.AtomicInteger coverWrites=
+        new java.util.concurrent.atomic.AtomicInteger();
+    private static void prunePersistentCovers(File folder){
         File[] entries=folder.listFiles((dir,name)->name.endsWith(".jpg"));
         if(entries==null||entries.length<32)return;
         Arrays.sort(entries,Comparator.comparingLong(File::lastModified).reversed());
