@@ -264,14 +264,14 @@ function renderImageFolder(data){
      const clearWatchdog=()=>{if(watchdog)clearTimeout(watchdog);watchdog=0;};
      const armWatchdog=()=>{
        clearWatchdog();
-       if(image.dataset.fallbackAttempted==='yes')return;
        watchdog=setTimeout(()=>{
          if(!image.isConnected||image.dataset.recycled==='yes'||
             (image.complete&&image.naturalWidth>0))return;
-         // Some SAF/cloud PNG streams hang without firing an IMG error event.
-         // Use the same bounded native JPEG fallback after a deadline.
+         // Do not silently switch to a different resource or decode variant.
+         // A hung stream becomes an explicit, retryable failure.
+         image.removeAttribute('src');
          image.dispatchEvent(new Event('error'));
-         window.AndroidBridge?.readerDiagnostic?.('IMAGE_TIMEOUT_NATIVE_FALLBACK');
+         window.AndroidBridge?.readerDiagnostic?.('IMAGE_STREAM_TIMEOUT');
        },7500);
      };
      image.loading='lazy';image.decoding='async';image.dataset.src=page.url;
@@ -283,18 +283,6 @@ function renderImageFolder(data){
      image.addEventListener('error',()=>{
        clearWatchdog();
        if(!section.isConnected||image.dataset.recycled==='yes')return;
-       if(image.dataset.fallbackAttempted!=='yes'){
-         image.dataset.fallbackAttempted='yes';
-         const nativeUrl=page.url.startsWith('https://fg-assets.invalid/raw/')?
-           page.url.replace('/raw/','/fallback/'):
-           page.url.startsWith('https://fg-assets.invalid/folder-img/')?
-           page.url.replace('/folder-img/','/fallback-folder/'):null;
-         if(nativeUrl){
-           image.src=nativeUrl;
-           window.AndroidBridge?.readerDiagnostic?.('IMAGE_NATIVE_FALLBACK_REQUESTED');
-           return;
-         }
-       }
        let retry=section.querySelector('.fg-image-retry');
        if(retry)return;
        retry=btn('Retry image','Reload this image from storage',()=>{
@@ -382,14 +370,13 @@ function renderImageFolder(data){
            img.dataset.recycled='no';
            img.src=img.dataset.src;
          }else if(!img.getAttribute('src'))img.src=img.dataset.src;
-         if(img.getAttribute('src')&&img.dataset.fallbackAttempted!=='yes' &&
-            !img.dataset.queuedWatchdog){
+         if(img.getAttribute('src')&&!img.dataset.queuedWatchdog){
            img.dataset.queuedWatchdog='yes';
            setTimeout(()=>{
              img.dataset.queuedWatchdog='';
              if(img.isConnected && img.dataset.recycled!=='yes' &&
                 !(img.complete&&img.naturalWidth>0))
-               img.dispatchEvent(new Event('error'));
+               {img.removeAttribute('src');img.dispatchEvent(new Event('error'));}
            },9000);
          }
        }else if(img.getAttribute('src') && img.complete && img.naturalWidth>0){

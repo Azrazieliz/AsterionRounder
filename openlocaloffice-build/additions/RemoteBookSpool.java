@@ -31,16 +31,12 @@ public final class RemoteBookSpool {
             throw new IllegalStateException("Cannot hash archive cache identity",e);
         }
     }
-    /** A cached archive can be read locally without touching Round Sync. */
+    /** No persistent full-document cache: only thumbnails may survive sessions. */
     public static File completedFile(Context ctx,Uri uri,long expected){
-        if(uri==null)return null;
-        File ready=new File(new File(ctx.getCacheDir(),"reading-v2"),
-            identity(uri,expected)+".zip");
-        return ready.isFile()&&ready.length()>0&&
-            (expected<0||ready.length()==expected)?ready:null;
+        return null;
     }
-    public static boolean hasCompleted(Context ctx,Uri uri,long expected) {
-        return completedFile(ctx,uri,expected)!=null;
+    public static boolean hasCompleted(Context ctx,Uri uri,long expected){
+        return false;
     }
     public interface PreviewListener {
         void onFirstPage(String name,byte[] image);
@@ -58,21 +54,13 @@ public final class RemoteBookSpool {
         String key=identity(uri,expected);
         Object lock=LOCKS.computeIfAbsent(key,k->new Object());
         synchronized(lock){
-            File dir=new File(ctx.getCacheDir(),"reading-v2");
+            File dir=new File(ctx.getCacheDir(),"reading-volatile-v3");
             if(!dir.exists()&&!dir.mkdirs())
                 throw new IOException("Cannot create remote book cache");
-            File ready=new File(dir,key+".zip");
-            if(ready.isFile()&&ready.length()>0&&
-                (expected<0||ready.length()==expected)){
-                Log.i("FG_PERF","CLOUD_SPOOL_CACHE_HIT bytes="+ready.length());
-                ready.setLastModified(System.currentTimeMillis());
-                return ready;
-            }
-            if(ready.exists()&&!ready.delete())
-                throw new IOException("Cannot discard incomplete remote book cache");
-            File pending=new File(dir,key+".part");
-            if(pending.exists()&&!pending.delete())
-                throw new IOException("Cannot discard unfinished remote download");
+            // Last resort for pipe-only SAF sources, used for the currently
+            // open reader only. Never keep or reuse an original across runs.
+            File ready=new File(dir,"s-"+java.util.UUID.randomUUID()+".zip");
+            File pending=new File(dir,ready.getName()+".part");
             long start=SystemClock.elapsedRealtime();
             final long[] counter={0};
             try(InputStream input=ctx.getContentResolver().openInputStream(uri);
@@ -149,7 +137,7 @@ public final class RemoteBookSpool {
             }
             if(!pending.renameTo(ready)){
                 pending.delete();
-                throw new IOException("Cannot finalize remote book cache");
+                throw new IOException("Cannot finish transient archive stream");
             }
             Log.i("FG_PERF","CLOUD_SPOOL_ms="+
                 (SystemClock.elapsedRealtime()-start)+" bytes="+copied);

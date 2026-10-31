@@ -52,6 +52,7 @@ public final class FgMediaPlayer implements AutoCloseable {
     private Uri original;
     private String filename;
     private boolean video;
+    private volatile File transientMediaFile;
     private final boolean teraboxDirect;
     private final Runnable onExit;
 
@@ -280,7 +281,7 @@ public final class FgMediaPlayer implements AutoCloseable {
             FgGrowingMediaDataSource.Progress progress=null;
             try{
                 File cacheDir=new File(activity.getExternalCacheDir()!=null?
-                    activity.getExternalCacheDir():activity.getCacheDir(),"fg-media-v2");
+                    activity.getExternalCacheDir():activity.getCacheDir(),"fg-media-session-v3");
                 if(!cacheDir.exists()&&!cacheDir.mkdirs())
                     throw new IOException("Media cache directory is not available");
                 String low=filename.toLowerCase(Locale.ROOT);
@@ -289,19 +290,12 @@ public final class FgMediaPlayer implements AutoCloseable {
                     ".mp3",".flac",".wav",".ogg",".opus"}){
                     if(low.endsWith(suffix)){extension=suffix;break;}
                 }
-                File ready=new File(cacheDir,digest(original)+extension);
-                File complete=new File(cacheDir,digest(original)+".complete");
-                if(ready.isFile()&&ready.length()>0&&complete.isFile()){
-                    if(!closed&&version==session)
-                        activity.runOnUiThread(()->play(Uri.fromFile(ready)));
-                    return;
-                }
-                // Only this file's incomplete cache is cleared; no app data
-                // or other downloaded media are deleted.
-                if(complete.exists())complete.delete();
-                if(ready.exists()&&!ready.delete())
-                    throw new IOException("Cannot reset partial media cache");
-                if(!ready.createNewFile())throw new IOException("Cannot create media cache");
+                // Player scratch is session-only. Never reuse a completed
+                // remote movie as a cache in subsequent sessions.
+                File ready=new File(cacheDir,"session-"+
+                    java.util.UUID.randomUUID()+extension);
+                transientMediaFile=ready;
+                if(!ready.createNewFile())throw new IOException("Cannot create session media stream");
                 progress=new FgGrowingMediaDataSource.Progress(ready);
                 growing=progress;
                 final FgGrowingMediaDataSource.Progress state=progress;
@@ -350,10 +344,6 @@ public final class FgMediaPlayer implements AutoCloseable {
                 }
                 if(written==0)throw new IOException("Video file is empty");
                 state.finished=true;state.wake();
-                try(FileOutputStream marker=new FileOutputStream(complete)){
-                    marker.write(Long.toString(written).getBytes(
-                        java.nio.charset.StandardCharsets.US_ASCII));
-                }
                 Log.i("FG_MEDIA","STREAM_DOWNLOAD_COMPLETE bytes="+written);
             }catch(Exception e){
                 Log.e("FG_MEDIA","VIDEO_STREAM_FAILED",e);
@@ -371,6 +361,9 @@ public final class FgMediaPlayer implements AutoCloseable {
         if(growing!=null){growing.cancelled=true;growing.wake();}
         player.stop();player.release();
         io.shutdownNow();
+        File scratch=transientMediaFile;
+        transientMediaFile=null;
+        if(scratch!=null && scratch.exists())scratch.delete();
         if(video)leaveVideoFullscreen();
     }
 }

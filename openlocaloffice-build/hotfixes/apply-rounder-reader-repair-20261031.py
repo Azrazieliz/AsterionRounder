@@ -180,13 +180,8 @@ j=reader.read_text()
 assert "append:payload=>add(payload?.pages)" in j
 j=j.replace("append:payload=>add(payload?.pages)",
             "append:payload=>add(Array.isArray(payload)?payload:payload?.pages)",1)
-needle='''         const nativeUrl=page.url.startsWith('https://fg-assets.invalid/raw/')?'''
-assert j.count(needle)==1
-j=j.replace(needle,'''         const nativeUrl=page.url.startsWith('https://fg-assets.invalid/book/')?
-           page.url.replace('/book/','/book-fallback/'):
-           page.url.startsWith('https://fg-assets.invalid/terabox-image/')?
-           page.url.replace('/terabox-image/','/terabox-preview/'):
-           page.url.startsWith('https://fg-assets.invalid/raw/')?''',1)
+# The base image reader now uses the original stream only.
+# Do not inject the former automatic native fallback URLs here.
 # A JS exception during viewer construction previously left appBusy(true)
 # covering the entire app indefinitely even for an 8 KB local PNG.
 old="""   renderImageFolder(data.type==='image'?{

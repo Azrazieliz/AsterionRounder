@@ -523,23 +523,9 @@ function archive(){
        });
        im.addEventListener('error',()=>{
          clearTimeout(watchdog);
-         const current=im.currentSrc||im.src;
-         if(!im.dataset.sampleAttempted &&
-            current.includes('https://fg-assets.invalid/book/')){
-           im.dataset.sampleAttempted='true';
-           im.src=current.replace('/book/','/book-fallback/');
-           // The second decoder attempt has its own deadline, otherwise a
-           // hanging native sample permanently consumes a download slot.
-           watchdog=setTimeout(()=>{
-             if(im.isConnected && !(im.complete&&im.naturalWidth>0))
-               im.dispatchEvent(new Event('error'));
-           },remoteArchive?30000:15000);
-           bridge()?.readerDiagnostic?.('ARCHIVE_NATIVE_SAMPLE_REQUESTED');
-           return;
-         }
          im.removeAttribute('src');
          const retry=button('Retry image',()=>{
-            retry.remove();im.dataset.sampleAttempted='';
+            retry.remove();
             im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
               'data:image/jpeg;base64,'+data;
          });
@@ -552,12 +538,14 @@ function archive(){
          'data:image/'+(ext==='jpg'?'jpeg':ext)+';base64,'+data;
        dest.appendChild(im);
        watchdog=setTimeout(()=>{
-         if(im.isConnected && !(im.complete&&im.naturalWidth>0) &&
-            !im.dataset.sampleAttempted){
+         if(im.isConnected && !(im.complete&&im.naturalWidth>0)){
+           // Timeout exposes a retry of the same original cloud range stream.
+           // It MUST NOT activate a different URL, image preview, or sample.
+           im.removeAttribute('src');
            im.dispatchEvent(new Event('error'));
-           bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_TIMEOUT_NATIVE_FALLBACK');
+           bridge()?.readerDiagnostic?.('ARCHIVE_ORIGINAL_STREAM_TIMEOUT');
          }
-       },remoteArchive?30000:8500);
+       },remoteArchive?30000:12000);
      }else{
        dest.appendChild(E('pre','fg-document-code',
          new TextDecoder().decode(decode(data))));

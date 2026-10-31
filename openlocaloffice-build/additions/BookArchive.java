@@ -99,6 +99,7 @@ public final class BookArchive implements Closeable {
                 // access. Share one completed copy across readers and prevent
                 // concurrent downloads of the same cloud book.
                 File completed=RemoteBookSpool.obtain(context,uri,advertised,preview);
+                temp=completed; // removed on close, never retained as a book cache
                 spoolHandle=ParcelFileDescriptor.open(completed,
                     ParcelFileDescriptor.MODE_READ_ONLY);
                 opened=new SeekableZip(spoolHandle);
