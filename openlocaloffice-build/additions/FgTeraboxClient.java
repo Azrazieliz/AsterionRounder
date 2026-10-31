@@ -173,6 +173,60 @@ public final class FgTeraboxClient {
         }
         return rows;
     }
+    /**
+     * Persist DIRECTORY METADATA only. Files and original image pixels are
+     * never copied. Reopening a huge library reuses its last short-lived
+     * page index, while new/changed entries are rechecked after the TTL.
+     */
+    public JSONArray listPageCached(String folder,int page)throws Exception{
+        final String scope=metadataScope();
+        if(scope.isEmpty())return listPage(folder,page);
+        File dir=new File(app.getFilesDir(),"terabox-directory-pages-v1");
+        if(!dir.isDirectory()&&!dir.mkdirs())return listPage(folder,page);
+        File saved=new File(dir,cacheId(scope+"|"+folder+"|"+page)+".gz");
+        long age=System.currentTimeMillis()-saved.lastModified();
+        if(saved.isFile()&&age>=0&&age<15L*60*1000L){
+            try(java.util.zip.GZIPInputStream in=new java.util.zip.GZIPInputStream(
+                new FileInputStream(saved))){
+                ByteArrayOutputStream out=new ByteArrayOutputStream(40*1024);
+                byte[] buffer=new byte[8192];int n;
+                while((n=in.read(buffer))!=-1){
+                    if(out.size()+n>1024*1024)throw new IOException("Invalid metadata index");
+                    out.write(buffer,0,n);
+                }
+                JSONArray rows=new JSONArray(out.toString("UTF-8"));
+                // Restore signed thumbnail URLs supplied in the original
+                // directory listing so one filemetas call per thumbnail
+                // is never required merely because the process restarted.
+                for(int i=0;i<rows.length();i++){
+                    JSONObject item=rows.optJSONObject(i);
+                    if(item==null||item.optInt("isdir",0)!=0)continue;
+                    JSONObject thumbs=item.optJSONObject("thumbs");
+                    if(thumbs==null)continue;
+                    String url=thumbs.optString("url3",thumbs.optString("url2",""));
+                    String path=item.optString("path","");
+                    if(!path.isEmpty()&&url.startsWith("https://"))
+                        thumbUrls.put(path,url);
+                }
+                return rows;
+            }catch(Exception invalid){saved.delete();}
+        }
+        JSONArray latest=listPage(folder,page);
+        byte[] bytes=latest.toString().getBytes(StandardCharsets.UTF_8);
+        if(bytes.length<=1024*1024){
+            File tmp=new File(dir,saved.getName()+"."+java.util.UUID.randomUUID()+".part");
+            try(java.util.zip.GZIPOutputStream zip=new java.util.zip.GZIPOutputStream(
+                new FileOutputStream(tmp))){
+                zip.write(bytes);
+            }catch(Exception ex){tmp.delete();return latest;}
+            if(!tmp.renameTo(saved)){
+                if(saved.exists())saved.delete();
+                if(!tmp.renameTo(saved))tmp.delete();
+            }
+        }
+        return latest;
+    }
+
     public JSONObject fileDetails(String path) throws Exception{
         JSONArray names=new JSONArray();names.put(safePath(path));
         Map<String,String> args=new LinkedHashMap<>();

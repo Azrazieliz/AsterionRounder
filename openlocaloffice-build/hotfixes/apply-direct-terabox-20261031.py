@@ -46,7 +46,7 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
                 int total=0;
                 for(int page=1;page<=10000;page++){
                     if(version!=fgTbVersion.get())return;
-                    org.json.JSONArray cloud=tb().listPage(requested,page);
+                    org.json.JSONArray cloud=tb().listPageCached(requested,page);
                     org.json.JSONArray batch=new org.json.JSONArray();
                     for(int i=0;i<cloud.length();i++){
                         org.json.JSONObject row=cloud.optJSONObject(i);
