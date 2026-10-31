@@ -139,6 +139,7 @@ jobs:
           cp ../additions/FgGrowingMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgGrowingMediaDataSource.java
           cp ../additions/FgTeraboxMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgTeraboxMediaDataSource.java
           python3 ../hotfixes/apply-rounder-reader-repair-20261031.py
+          python3 ../hotfixes/apply-rounder-final-ui-20261031.py
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
@@ -157,6 +158,7 @@ jobs:
           grep -Fq 'AES/GCM/NoPadding' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
           grep -Fq 'androidx.media3:media3-exoplayer:1.11.1' app/build.gradle.kts
           grep -Fq 'FgMediaPlayer' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'fg-image-reader-active .searchbar' app/src/main/assets/style.css
           grep -Fq 'setVideoQueue' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'navigateFgVideo' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'requestBookChapter' app/src/main/java/com/openlocal/office/MainActivity.java
