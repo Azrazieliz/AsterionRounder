@@ -37,6 +37,25 @@ public final class FgTeraboxClient {
                 return size()>1600;
             }
         });
+    // A short-lived hot page index avoids repeatedly inflating the same
+    // ~100-entry cloud metadata page for every nearby thumbnail miss.
+    // Bound both count and age; disk cache remains canonical and survives restarts.
+    private static final class HotPage {
+        final JSONArray rows;
+        final long loadedAt;
+        HotPage(JSONArray rows,long loadedAt){this.rows=rows;this.loadedAt=loadedAt;}
+    }
+    private final Map<String,HotPage> hotPages=
+        new LinkedHashMap<String,HotPage>(48,0.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<String,HotPage> oldest){
+                return size()>32;
+            }
+        };
+    private void cacheHotPage(String key,JSONArray rows){
+        synchronized(hotPages){
+            hotPages.put(key,new HotPage(rows,android.os.SystemClock.elapsedRealtime()));
+        }
+    }
     public FgTeraboxClient(Context context){
         app=context.getApplicationContext();
         prefs=app.getSharedPreferences("fg_terabox_secure",Context.MODE_PRIVATE);
@@ -69,6 +88,7 @@ public final class FgTeraboxClient {
             Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE,key());
             byte[] ciphertext=cipher.doFinal(token.getBytes(StandardCharsets.UTF_8));
+            synchronized(hotPages){hotPages.clear();}
             prefs.edit().putString("preview_scope",java.util.UUID.randomUUID().toString())
                 .putString("ndus",Base64.encodeToString(ciphertext,Base64.NO_WRAP))
                 .putString("iv",Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP))
@@ -79,7 +99,11 @@ public final class FgTeraboxClient {
             return false;
         }
     }
-    public synchronized void disconnect(){linkCache.clear();thumbUrls.clear();prefs.edit().remove("ndus").remove("iv").remove("preview_scope").apply();}
+    public synchronized void disconnect(){
+        linkCache.clear();thumbUrls.clear();
+        synchronized(hotPages){hotPages.clear();}
+        prefs.edit().remove("ndus").remove("iv").remove("preview_scope").apply();
+    }
     public boolean configured(){return prefs.contains("ndus")&&prefs.contains("iv");}
     // Random UUID is rotated on reconnect and is NOT the ndus token.
     // Scoped private metadata pages can never leak between TeraBox accounts.
@@ -181,6 +205,12 @@ public final class FgTeraboxClient {
     public JSONArray listPageCached(String folder,int page)throws Exception{
         final String scope=metadataScope();
         if(scope.isEmpty())return listPage(folder,page);
+        String hotKey=scope+"|"+folder+"|"+page;
+        synchronized(hotPages){
+            HotPage hit=hotPages.get(hotKey);
+            if(hit!=null&&android.os.SystemClock.elapsedRealtime()-hit.loadedAt<90000)
+                return hit.rows;
+        }
         File dir=new File(app.getFilesDir(),"terabox-directory-pages-v1");
         if(!dir.isDirectory()&&!dir.mkdirs())return listPage(folder,page);
         File saved=new File(dir,cacheId(scope+"|"+folder+"|"+page)+".gz");
@@ -208,10 +238,12 @@ public final class FgTeraboxClient {
                     if(!path.isEmpty()&&url.startsWith("https://"))
                         thumbUrls.put(path,url);
                 }
+                cacheHotPage(hotKey,rows);
                 return rows;
             }catch(Exception invalid){saved.delete();}
         }
         JSONArray latest=listPage(folder,page);
+        cacheHotPage(hotKey,latest);
         byte[] bytes=latest.toString().getBytes(StandardCharsets.UTF_8);
         if(bytes.length<=1024*1024){
             File tmp=new File(dir,saved.getName()+"."+java.util.UUID.randomUUID()+".part");
