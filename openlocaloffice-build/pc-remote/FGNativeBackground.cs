@@ -36,8 +36,8 @@ namespace FileGestioner.NativeRemote
             File.Delete(requestPath);
             try {
                 string[] parts=request.Split(',');
-                int width=Math.Max(128,Math.Min(1024,int.Parse(parts[0])));
-                int height=Math.Max(128,Math.Min(1024,int.Parse(parts[1])));
+                int width=Math.Max(240,Math.Min(1200,int.Parse(parts[0])));
+                int height=Math.Max(240,Math.Min(1920,int.Parse(parts[1])));
                 if(File.Exists(framePath))File.Delete(framePath);
                 if(File.Exists(errorPath))File.Delete(errorPath);
 
