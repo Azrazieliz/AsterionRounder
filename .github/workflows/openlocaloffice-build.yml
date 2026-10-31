@@ -131,6 +131,7 @@ jobs:
           cp ../additions/FgTeraboxDocumentsProvider.java app/src/main/java/com/openlocal/office/core/FgTeraboxDocumentsProvider.java
           python3 ../hotfixes/apply-asterion-platform-20261031.py
           python3 ../hotfixes/apply-asterion-branding-20261031.py
+          python3 ../hotfixes/apply-asterion-device-fixes-20261031.py
           cp ../additions/FgMediaPlayer.java app/src/main/java/com/openlocal/office/core/FgMediaPlayer.java
           cp ../additions/FgGrowingMediaDataSource.java app/src/main/java/com/openlocal/office/core/FgGrowingMediaDataSource.java
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
