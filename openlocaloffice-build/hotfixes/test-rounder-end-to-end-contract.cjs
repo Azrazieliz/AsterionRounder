@@ -56,6 +56,24 @@ assert.match(metadataClient,/private final Map<String,HotPage> hotPages/,
 assert.match(metadataClient,/size\(\)>32/,
   'Hot page cache must not grow without limit');
 
+const remote=fs.readFileSync('app/src/main/assets/fg-remote-ui.js','utf8');
+new (require('vm').Script)(remote,{filename:'fg-remote-ui.js'});
+assert.match(remote,/document\.body\.classList\.add\('fg-pc-active'\)/,
+  'Remote viewport must enter foreground full-screen mode');
+assert.match(remote,/&width='\+width\+'&height='\+height/,
+  '3D frames must match the actual phone viewport');
+assert.match(remote,/panX=clamp/,
+  'Two-finger panning must move camera without moving 3D objects');
+assert.match(remote,/requestFrame\(\)/,
+  'Orbit and zoom must request fresh PC frames');
+const css=fs.readFileSync('app/src/main/assets/style.css','utf8');
+assert.match(css,/z-index:2147483640!important/,
+  '3D scene must sit above image-reader navigation and entry controls');
+const bridgeSource=fs.readFileSync('../pc-remote/fg_remote_server.py','utf8');
+assert.match(bridgeSource,/camera_rotation=\[math\.degrees\(pitch\),180\+math\.degrees\(yaw\),0\]/,
+  'Koikatsu orbit must point camera back toward the stationary target');
+assert.match(bridgeSource,/request\.write_text\(f"\{width\},\{height\}"/,
+  'PC must render full-height phone frames instead of a 680x800 square');
 const library=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
 const covers=fs.readFileSync('app/src/main/java/com/openlocal/office/core/ReaderCovers.java','utf8');
 assert.match(pages,/queryChildDocuments\(String documentId,String\[\] projection,Bundle args\)/,
