@@ -796,19 +796,29 @@ window.FileGestionerLibrary={
    state.started=true;
    const feed=()=>{
      if(imagePumpState!==state||imagePumpVersion!==state.version)return;
+     if(state.preparing||!state.demand)return;
      if(state.offset>=state.siblings.length){
        if(state.live && scanning){state.paused=true;return;}
+       state.demand=false;
        bridge()?.finishImageCollection?.();imagePumpState=null;return;
      }
+     state.demand=false;
      const batch=state.siblings.slice(state.offset,state.offset+96)
        .map(x=>state.terabox?{path:x.path,name:x.name}:{uri:x.uri,name:x.name});
      state.offset+=96;
      if(state.terabox)bridge()?.appendTeraboxImageCollectionChunk?.(JSON.stringify(batch));
      else bridge()?.appendImageCollectionChunk?.(JSON.stringify(batch));
-     setTimeout(feed,0);
+     // Next chunk is requested only when the reader nears its visible
+     // end. Never pre-register all 300,000 image URLs at once.
    };
    state.feed=feed;
+   state.demand=true;
    feed();
+ },
+ imageReaderDemand:()=>{
+   const state=imagePumpState;
+   if(!state||!state.started||state.version!==imagePumpVersion)return;
+   state.demand=true;state.feed?.();
  },
  isVisible:()=>visible,
  openCollection:()=>{
