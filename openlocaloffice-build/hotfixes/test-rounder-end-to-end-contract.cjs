@@ -84,18 +84,18 @@ assert.match(library,/const naturalCollator=new Intl.Collator/,
   'File comparisons must share one Intl.Collator');
 assert.match(library,/indexedRevision===catalogRevision&&indexedKey===key/,
   'Changing library pages must reuse the filtered and sorted index');
-assert.match(library,/state\\.known\\.add\\(key\\)/,
+assert.match(library,/state\.known\.add\(key\)/,
   'Growing image collections must dedupe using an incremental Set');
-assert.doesNotMatch(library,/new Set\\(state\\.siblings\\.map/,
+assert.doesNotMatch(library,/new Set\(state\.siblings\.map/,
   'Do not rebuild the known-images set after every cloud batch');
 assert.match(library,/const sameCollection=collectionCacheKey===nextCollectionKey/,
   'Reopening a folder must retain already rendered images');
-assert.match(nativeTerabox,/fgTbCoverId\\(path,page\\)/,
+assert.match(nativeTerabox,/fgTbCoverId\(path,page\)/,
   'Cover URLs must be stable and encode their metadata page');
 assert.doesNotMatch(nativeTerabox,/fgTbCoverIds/,
   'Native memory must not hold a second map of 300K cover paths');
-assert.match(nativeTerabox,/tb\\(\\)\\.openThumbnail\\(path,folder,page\\)/,
+assert.match(nativeTerabox,/tb\(\)\.openThumbnail\(path,folder,page\)/,
   'Cloud cover requests must recover thumbnail URLs by metadata page');
-assert.match(metadataClient,/listPageCached\\(folder,page\\)/,
+assert.match(metadataClient,/listPageCached\(folder,page\)/,
   'Thumbnail cache misses should reuse a full cached metadata page instead of per-file metadata calls');
 console.log('ASTERION_READER_CONTRACT_PASS');
