@@ -587,10 +587,17 @@ function archive(){
      const frame=cells[i],rect=frame.getBoundingClientRect(),view=body.getBoundingClientRect();
      if(rect.bottom>=view.top-body.clientHeight&&rect.top<=view.bottom+body.clientHeight){
        const target=E('div','fg-comic-page');
+       // Once the placeholder is replaced, the IMG still has no intrinsic
+       // size until its network bytes arrive. Preserve the viewport slot,
+       // otherwise every subsequent page collapses into view at once.
+       if(remoteArchive)target.style.minHeight='85vh';
        inFlight++;
        let released=false;
        const release=()=>{
          if(released)return;released=true;
+         const ready=target.querySelector('img');
+         if(ready?.naturalWidth>0&&ready?.naturalHeight>0)
+           target.style.minHeight='';
          inFlight=Math.max(0,inFlight-1);
          if(!disposed&&queue.size&&!scheduled){
            scheduled=true;requestAnimationFrame(draw);
