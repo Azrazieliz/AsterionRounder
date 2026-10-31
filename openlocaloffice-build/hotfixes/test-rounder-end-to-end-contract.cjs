@@ -112,7 +112,7 @@ for(const source of [
   'app/src/main/assets/reader-controls.js'
 ]){
   const data=fs.readFileSync(source,'utf8');
-  assert.doesNotMatch(data,/round[\\s_-]?sync|felixnuesse/i,
+  assert.doesNotMatch(data,/round[\s_-]?sync|felixnuesse/i,
     'Legacy RoundSync implementation must not return: '+source);
 }
 assert.match(media,/if\(teraboxDirect\)playTeraboxRanges\(\);\s*else play\(original\)/,
