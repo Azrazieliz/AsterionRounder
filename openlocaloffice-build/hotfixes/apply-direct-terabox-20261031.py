@@ -202,12 +202,13 @@ impl=r'''    private static final int FG_TERA_SAVE_REQUEST=2027;
         String id=source.getLastPathSegment();
         if(id==null||id.length()>8192)return new WebResourceResponse("image/jpeg",null,
             new ByteArrayInputStream(new byte[0]));
+        String path=null;
         try{
             int split=id.lastIndexOf('.');
             if(split<1)throw new IOException("Missing thumbnail page");
             int page=Integer.parseInt(id.substring(split+1));
             if(page<1||page>10000)throw new IOException("Invalid thumbnail page");
-            String path=new String(android.util.Base64.decode(id.substring(0,split),
+            path=new String(android.util.Base64.decode(id.substring(0,split),
                 android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
                 android.util.Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8);
             if(!path.startsWith("/"))throw new IOException("Invalid cloud cover path");
