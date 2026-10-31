@@ -219,7 +219,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self.reply(200,raw,"image/png")
                     time.sleep(.1)
                 raise RuntimeError("Native Unity offscreen capture timed out")
-        name=f"{sid}_{yaw:.2f}_{pitch:.2f}_{distance:.2f}.jpg"
+        name=(f"{sid}_{yaw:.3f}_{pitch:.3f}_{distance:.3f}_"
+              f"{pan_x:.2f}_{pan_y:.2f}_{width}x{height}.jpg")
         destination=ROOT/"frames"/name
         destination.parent.mkdir(exist_ok=True)
         if not destination.is_file():
@@ -227,7 +228,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not destination.is_file():
                     args=[str(BLENDER),"--background","--factory-startup","--python",str(RENDER),
                           "--",info["kind"],info["source"],str(destination),
-                          str(yaw),str(pitch),str(distance)]
+                          str(yaw),str(pitch),str(distance),
+                          str(pan_x),str(pan_y),str(width),str(height)]
                     flags=getattr(subprocess,"CREATE_NO_WINDOW",0)
                     out=subprocess.run(args,capture_output=True,text=True,timeout=120,
                         creationflags=flags)
