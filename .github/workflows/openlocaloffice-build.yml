@@ -366,6 +366,18 @@ jobs:
         working-directory: openlocaloffice-build/project
         run: gradle --no-daemon --max-workers=2 assembleRelease --stacktrace
 
+      # Store a build-only intermediate for authorized signing/recovery.
+      # This artifact is NOT installable, not a release, and never replaces the
+      # installed app. Signing must match the existing installed certificate.
+      - name: Preserve compiled unsigned APK for authorized signing
+        if: ${{ always() && steps.release_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Asterion-Rounder-unsigned-for-authorized-signing
+          path: openlocaloffice-build/project/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+
       # Signing and publishing must not be suppressed by an unrelated
       # x86_64 Chromium emulator crash. Only the approved certificate is valid.
       - name: Validate existing release signing credentials
