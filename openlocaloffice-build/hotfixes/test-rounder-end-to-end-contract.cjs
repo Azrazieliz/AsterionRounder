@@ -27,8 +27,12 @@ assert.match(media,/R\.id\.exo_prev/,
 assert.match(media,/R\.id\.exo_next/,
   'Explicitly suppress legacy Media3 next overlay icon');
 
-assert.match(media,/PlayerView.ControllerVisibilityListener/,
-  'Overlay navigation follows Media3 playback controls rather than a full-width bar');
+assert.match(media,/display.setUseController\(false\)/,
+  'Video hides Media3 controls and uses exactly one Aloha-style transport overlay');
+assert.match(media,/root.addView\(transport,new FrameLayout.LayoutParams\(-2,-2,Gravity.CENTER\)\)/,
+  'Compact video transport must remain centered rather than full-width');
+assert.match(media,/root.addView\(footer,new FrameLayout.LayoutParams\(-1,-2,Gravity.BOTTOM\)\)/,
+  'Video seek and modes must have a single compact bottom bar');
 assert.match(media,/mediaNavigator.navigate\(-1,false\)/,
   'Previous video is wired to playlist navigation');
 assert.match(media,/mediaNavigator.navigate\(1,false\)/,
