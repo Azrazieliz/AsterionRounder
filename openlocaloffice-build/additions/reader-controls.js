@@ -284,7 +284,6 @@ function renderImageFolder(data){
          // A hung stream becomes an explicit, retryable failure.
          // Preserve loaded pixels during a slow new image fetch.
          if(image.dataset.loaded!=='yes')image.dispatchEvent(new Event('error'));
-         image.dispatchEvent(new Event('error'));
          window.AndroidBridge?.readerDiagnostic?.('IMAGE_STREAM_TIMEOUT');
        },30000);
      };
