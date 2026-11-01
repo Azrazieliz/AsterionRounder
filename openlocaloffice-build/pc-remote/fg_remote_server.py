@@ -147,7 +147,25 @@ class Handler(BaseHTTPRequestHandler):
             sub=ROOT/("cards" if kind=="koikatsu" else "blends");sub.mkdir(exist_ok=True)
             digest=hashlib.sha256(payload).hexdigest()
             source=sub/(digest+(".png" if kind=="koikatsu" else ".blend"))
-            if not source.exists():source.write_bytes(payload)
+            # A failed/interrupted upload may leave a zero-byte file with the
+            # expected name. Never treat mere existence as cache validity.
+            valid=False
+            if source.is_file() and source.stat().st_size==len(payload):
+                with source.open("rb") as existing:
+                    hash_check=hashlib.file_digest(existing,"sha256").hexdigest()
+                valid=hash_check==digest
+            if not valid:
+                temporary=source.with_name(source.name+"."+secrets.token_hex(8)+".part")
+                try:
+                    with temporary.open("xb") as stream:
+                        stream.write(payload)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(temporary,source)
+                finally:
+                    if temporary.exists():temporary.unlink()
+                if source.stat().st_size!=len(payload):
+                    raise IOError("Stored PC asset does not match uploaded bytes")
         with GUARD:
             SESSIONS[sid]={"kind":kind,"source":str(source or ""),
                 "created":time.time(),"ready":kind!="koikatsu","error":None}
