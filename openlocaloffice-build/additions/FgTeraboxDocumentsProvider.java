@@ -288,45 +288,47 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             final String folder=path(documentId);
             final int offset=args.getInt(PAGE_OFFSET,-1);
             final int limit=args.getInt(PAGE_LIMIT,INDEX_PAGE_SIZE);
-            if(offset<0||offset%INDEX_PAGE_SIZE!=0||limit!=INDEX_PAGE_SIZE||
+            // 400 rows fit comfortably in an Android Binder cursor, so
+            // AsterionCore can consume four metadata pages per IPC query.
+            if(offset<0||offset%INDEX_PAGE_SIZE!=0||
+               (limit!=INDEX_PAGE_SIZE&&limit!=4*INDEX_PAGE_SIZE)||
                offset/INDEX_PAGE_SIZE>=100000)
                 throw new IOException("Invalid paged directory query");
-            final int page=offset/INDEX_PAGE_SIZE+1;
-            final String key=pageKey(folder,page);
-            final File cache=pageFile(key);
-            JSONArray cached=readMetadataPage(cache);
-            boolean stale=cache.isFile()&&
-                System.currentTimeMillis()-cache.lastModified()>METADATA_FRESH_MS;
-            // Unlike the ordinary picker, the bulk scanner consumes one
-            // small Cursor per page; no 450-file hard truncation.
-            if(cached==null||stale)queuePage(folder,page,key,cache);
-            // Warm two future metadata pages concurrently to eliminate
-            // per-page round-trip latency without fetching image bytes.
-            if((cached==null||cached.length()==INDEX_PAGE_SIZE)&&page<99997){
-                for(int lookahead=1;lookahead<=2;lookahead++){
-                    int next=page+lookahead;
-                    String nextKey=pageKey(folder,next);
-                    File nextFile=pageFile(nextKey);
-                    if(!nextFile.isFile()||
-                       System.currentTimeMillis()-nextFile.lastModified()>METADATA_FRESH_MS)
-                        queuePage(folder,next,nextKey,nextFile);
-                }
-            }
-            if(cached!=null){
-                for(int i=0;i<cached.length();i++){
-                    JSONObject item=cached.optJSONObject(i);
+            final int firstPage=offset/INDEX_PAGE_SIZE+1;
+            boolean ready=true;
+            boolean terminal=false;
+            for(int i=0;i<limit/INDEX_PAGE_SIZE;i++){
+                int page=firstPage+i;
+                String key=pageKey(folder,page);
+                File cache=pageFile(key);
+                JSONArray cached=readMetadataPage(cache);
+                boolean stale=cache.isFile()&&
+                    System.currentTimeMillis()-cache.lastModified()>METADATA_FRESH_MS;
+                if(cached==null||stale)queuePage(folder,page,key,cache);
+                if(cached==null){ready=false;continue;}
+                for(int j=0;j<cached.length();j++){
+                    JSONObject item=cached.optJSONObject(j);
                     if(item==null)continue;
                     String cloudPath=item.optString("path","");
                     if(cloudPath.startsWith("/"))addDocument(rows,item,cloudPath);
                 }
+                if(cached.length()<INDEX_PAGE_SIZE){terminal=true;break;}
+            }
+            if(!terminal && firstPage+limit/INDEX_PAGE_SIZE<99998){
+                for(int lookahead=0;lookahead<2;lookahead++){
+                    int next=firstPage+limit/INDEX_PAGE_SIZE+lookahead;
+                    String key=pageKey(folder,next),name=key;
+                    File file=pageFile(name);
+                    if(!file.isFile()||
+                       System.currentTimeMillis()-file.lastModified()>METADATA_FRESH_MS)
+                        queuePage(folder,next,key,file);
+                }
             }
             Bundle result=new Bundle();
-            result.putBoolean(DocumentsContract.EXTRA_LOADING,
-                cached==null&&pageFlights.contains(key));
-            // On errors do not silently return an empty, complete directory.
-            // Serve an already indexed page immediately while it refreshes in background.
-            result.putBoolean("asterion.page.ready",cached!=null);
-            result.putInt("asterion.page.number",page);
+            result.putBoolean(DocumentsContract.EXTRA_LOADING,!ready);
+            result.putBoolean("asterion.page.ready",ready);
+            result.putInt("asterion.page.number",firstPage);
+            result.putInt("asterion.page.size",limit);
             rows.setExtras(result);
             rows.setNotificationUri(getContext().getContentResolver(),
                 DocumentsContract.buildChildDocumentsUri(AUTHORITY,documentId));
