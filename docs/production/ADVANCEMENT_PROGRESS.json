@@ -405,7 +405,7 @@
       "requirement_ref": "AR-REL-009",
       "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
       "name": "Persistent project hierarchy / reuse-first continuity",
-      "engineering_state": "SOURCE_PRESENT",
+      "engineering_state": "TESTED_FUNCTIONAL",
       "owner_verdict": null,
       "implementation": {
         "paths": [
@@ -414,7 +414,7 @@
           "docs/production/AUTOMATION_5STAR.md",
           "scripts/production/resume_project.py"
         ],
-        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "head_evidence_commit": "a898ea9f6440ef587478234426cec570e4c87f42",
         "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
       },
       "automation": [
@@ -422,14 +422,23 @@
       ],
       "verification": {
         "level": "SOURCE_OR_CI_EVIDENCE_ONLY",
-        "evidence": "Initial 7★ / 6★ / 5★ adoption committed in same development branch; verification and commit metadata recorded in change log."
+        "evidence": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes.",
+        "history": [
+          {
+            "date": "2026-11-01T21:31:22.541988+00:00",
+            "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+            "engineering_state": "TESTED_FUNCTIONAL",
+            "evidence": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes.",
+            "previous_engineering_state": "SOURCE_PRESENT"
+          }
+        ]
       },
       "functional_implementation": "Tracked implementation and/or associated patches located in docs/production/PROJECT_7STAR_AUTHORITY.md",
-      "remaining": "Record actual documentation commit after source is committed and run self-check.",
+      "remaining": "CI emulator boot on hosted runner still fails; Koikatsu/Blender 3D remains unverified pending owner Android port results.",
       "root_cause": "No confirmed root cause unless specified in evidence",
       "missing_assets_or_integrations": [],
       "dependencies": [],
-      "next_action": "Commit adoption; update log with exact commit SHA; verify status and scripts."
+      "next_action": "Reuse the authority/progress/automation sequence for each subsequent implementation; record exact commit and run relevant regression; keep 3D pending owner test and CI emulator failure separately tracked."
     },
     {
       "id": "AR-013",
@@ -468,9 +477,16 @@
     {
       "date": "2026-11-01",
       "type": "INITIAL_ADOPTION",
-      "commit": null,
+      "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
       "description": "Initial non-destructive 7★ / 6★ / 5★ repository hierarchy, registry and resumable verification tool; exact SHA to be filled after organizational commit.",
-      "verification": "Pending adoption command check; no end-user runtime changed."
+      "verification": "Read-only resume --check and --catalog passed; 13 task records and 91 automation programs; ADB reports versionCode 36, versionName 0.15.14; no app data changed."
+    },
+    {
+      "date": "2026-11-01T21:31:22.541988+00:00",
+      "type": "ENGINEERING_PROGRESS",
+      "task_id": "AR-012",
+      "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+      "description": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes."
     }
   ],
   "open_gaps": [
