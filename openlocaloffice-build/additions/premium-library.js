@@ -421,7 +421,8 @@ function card(item,i){
 function render(){
  if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
  deck.className='fg-lib-grid'+(list?' fg-lib-list':'');
- deck.replaceChildren();empty.replaceChildren();
+ // Preserve loaded cover IMG nodes until the visible signature actually changes.
+ empty.replaceChildren();
  root.querySelectorAll('.fg-lib-pager').forEach(n=>n.remove());
  const needle=phrase.trim().toLocaleLowerCase();
  const key=[filter,needle,sortBy,sortDescending?'desc':'asc'].join('\u0001');
@@ -452,14 +453,19 @@ function render(){
    (entry.path||entry.uri||entry.id||entry.name)+'|'+(entry.modified||0)+'|'+(entry.size||0));
  const signature=nextKeys.join('\n')+'|'+list;
  if(signature!==lastVisibleKeys){
-   const fragment=document.createDocumentFragment();
+   const wanted=[];
    visiblePage.forEach((entry,i)=>{
      const key=nextKeys[i]+'|'+list;
      let cached=retainedCards.get(key);
      if(!cached){cached=card(entry,pageStart+i);retainedCards.set(key,cached);}
-     fragment.appendChild(cached);
+     wanted.push(cached);
    });
-   deck.replaceChildren(fragment);
+   // Reconcile instead of discarding loaded cover elements.
+    wanted.forEach((node,i)=>{
+      const existing=deck.children[i];
+      if(existing!==node)deck.insertBefore(node,existing||null);
+    });
+    while(deck.children.length>wanted.length)deck.lastElementChild.remove();
    lastVisibleKeys=signature;
    if(retainedCards.size>PAGE*4){
      const keep=new Set(nextKeys.map(key=>key+'|'+list));
@@ -525,7 +531,9 @@ function request(){
  const nextCollectionKey=(cloudMode?'cloud:':'saf:')+(currentFolder||'/');
  const sameCollection=collectionCacheKey===nextCollectionKey;
  collectionCacheKey=nextCollectionKey;
- activeVersion=null;scanning=true;pageStart=0;entries=[];loaded=false;
+ activeVersion=null;scanning=true;pageStart=0;
+ if(!sameCollection)entries=[];
+ loaded=false;
  catalogRevision++;indexedRevision=-1;indexedEntries=[];
  // Reuse existing IMG nodes when revisiting this folder; unchanged covers
  // must not blink or be downloaded again during metadata refresh.
@@ -534,7 +542,7 @@ function request(){
  if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
  loading.textContent='Loading your collection…';
  loading.classList.toggle('fg-lib-hidden',sameCollection&&!!lastVisibleKeys);
- deck.classList.toggle('fg-lib-hidden',!sameCollection||!lastVisibleKeys);
+ deck.classList.toggle('fg-lib-hidden',!lastVisibleKeys);
  empty.classList.add('fg-lib-hidden');
  if(cloudMode)bridge()?.listTerabox?.(currentFolder||'');
  else bridge()?.listLibrary?.(currentFolder);
@@ -662,7 +670,10 @@ function append(payload){
  }
  if(payload.version!==activeVersion||payload.folder!==currentFolder)return;
  const fresh=payload.items.filter(e=>!e.folder&&classify(e)==='image');
- entries.push(...payload.items);
+ const present=new Set(entries.map(e=>e.path||e.uri||e.id));
+ for(const item of payload.items){const id=item.path||item.uri||item.id;
+   if(!present.has(id)){entries.push(item);present.add(id);}
+ }
  catalogRevision++;
  scanning=!payload.finished;loaded=true;
  const state=imagePumpState;
@@ -737,9 +748,9 @@ function receive(payload){
 }
 function loadingStatus(message){
  if(!visible)return;
- loading.classList.remove('fg-lib-hidden');
  loading.textContent=message||'Waiting for cloud directory metadata…';
- deck.classList.add('fg-lib-hidden');
+ loading.classList.toggle('fg-lib-hidden',deck.children.length>0);
+ // Do not hide already loaded images for a background network status update.
  empty.classList.add('fg-lib-hidden');
 }
 function error(message){
