@@ -6,8 +6,27 @@ import base64,hashlib,hmac,json,math,os,pathlib,secrets,subprocess,sys,threading
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 
-ROOT=pathlib.Path.home()/".file-gestioner"/"native-3d"
+# Keep large native assets away from a full Windows system partition.
+# Existing credentials are migrated without rotation; the phone remains paired.
+LEGACY_ROOT=pathlib.Path.home()/".file-gestioner"/"native-3d"
+preferred=os.environ.get("FG_NATIVE3D_ROOT","").strip()
+if not preferred and os.name=="nt":
+    import shutil
+    try:
+        if shutil.disk_usage(str(pathlib.Path.home())).free<2*1024**3 and pathlib.Path("D:/").is_dir():
+            preferred="D:/AsterionRounder/native-3d"
+    except OSError:pass
+ROOT=pathlib.Path(preferred).expanduser() if preferred else LEGACY_ROOT
 ROOT.mkdir(parents=True,exist_ok=True)
+os.environ["FG_NATIVE3D_ROOT"]=str(ROOT)
+if ROOT!=LEGACY_ROOT:
+    import shutil
+    legacy_token=LEGACY_ROOT/"pair-token.txt"
+    if legacy_token.is_file() and not (ROOT/"pair-token.txt").exists():
+        shutil.copy2(legacy_token,ROOT/"pair-token.txt")
+    legacy_vendor=LEGACY_ROOT/"vendor"
+    if legacy_vendor.is_dir() and not (ROOT/"vendor").is_dir():
+        shutil.copytree(legacy_vendor,ROOT/"vendor")
 BLENDER=pathlib.Path(r"D:\Tools\Blender-5.2.2-LTS\blender-5.2.2-windows-x64\blender.exe")
 STUDIO=pathlib.Path(r"D:\Tools\Steam\steamapps\common\Koikatsu Party\CharaStudio.exe")
 STUDIO_HELPER=pathlib.Path(__file__).with_name("fg_studio_background_window.py")
