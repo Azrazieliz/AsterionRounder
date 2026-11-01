@@ -93,11 +93,15 @@ replacement=r'''            // Native vector phone / padlock icons, never diamon
 '''
 s=s[:start]+replacement+s[end:]
 one("headPosition.rightMargin=(int)(55*dp);","headPosition.rightMargin=(int)(12*dp);","no abandoned share area")
-one("final LinearLayout transport=new LinearLayout(activity);",
-    "final long[] lastChromeInteraction={android.os.SystemClock.uptimeMillis()};\n            final LinearLayout transport=new LinearLayout(activity);",
-    "declare chrome before listeners")
-one("            final long[] lastChromeInteraction={android.os.SystemClock.uptimeMillis()};\n            final LinearLayout footer=new LinearLayout(activity);",
-    "            final LinearLayout footer=new LinearLayout(activity);","avoid duplicate chrome")
+# The previous video patch may already declare the clock before transport.
+# Preserve its single existing binding, relocating only when necessary.
+chrome="final long[] lastChromeInteraction={android.os.SystemClock.uptimeMillis()};"
+transport="final LinearLayout transport=new LinearLayout(activity);"
+assert s.count(chrome)==1 and s.count(transport)==1
+if s.index(chrome)>s.index(transport):
+    s=s.replace(chrome+"\n            final LinearLayout footer=new LinearLayout(activity);",
+                "final LinearLayout footer=new LinearLayout(activity);",1)
+    s=s.replace(transport,chrome+"\n            "+transport,1)
 # Give clean native vector controls rather than broken font glyphs.
 start=s.index("            final Button previous=new Button(activity);")
 end=s.index("            root.addView(transport,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));",start)
