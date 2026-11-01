@@ -186,6 +186,28 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         try{return Long.parseLong(docId.substring(docId.lastIndexOf('.')+1));}
         catch(Exception ignored){return -1;}
     }
+    /** Standard Android SAF thumbnail API. AsterionCore can request a
+     * small cached preview without streaming an entire remote original.
+     * This returns a duplicate FD of Rounder's persistent thumbnail cache.
+     */
+    @Override public AssetFileDescriptor openDocumentThumbnail(
+            String documentId,android.graphics.Point sizeHint,CancellationSignal signal)
+            throws java.io.FileNotFoundException {
+        try{
+            if(isContinuation(documentId))
+                throw new IOException("Pagination folders have no preview");
+            String cloud=path(documentId);
+            if(!FgTeraboxClient.image(cloud))
+                throw new IOException("Not an image with a cloud thumbnail");
+            try(java.io.InputStream source=client.openThumbnail(cloud)){
+                if(!(source instanceof java.io.FileInputStream))
+                    throw new IOException("Thumbnail was not file backed");
+                ParcelFileDescriptor fd=ParcelFileDescriptor.dup(
+                    ((java.io.FileInputStream)source).getFD());
+                return new AssetFileDescriptor(fd,0,AssetFileDescriptor.UNKNOWN_LENGTH);
+            }
+        }catch(Exception error){throw unavailable(error);}
+    }
     @Override public boolean onCreate() {
         client = new FgTeraboxClient(getContext());
         workerThread = new HandlerThread("asterion-terabox-range");
@@ -229,7 +251,9 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         if (!dir) add(row, rows, DocumentsContract.Document.COLUMN_SIZE, item.optLong("size", -1));
         add(row, rows, DocumentsContract.Document.COLUMN_LAST_MODIFIED,
             item.optLong("server_mtime", 0) * 1000L);
-        add(row, rows, DocumentsContract.Document.COLUMN_FLAGS, 0);
+        add(row, rows, DocumentsContract.Document.COLUMN_FLAGS,
+            !dir&&FgTeraboxClient.image(name)?
+                DocumentsContract.Document.FLAG_SUPPORTS_THUMBNAIL:0);
     }
     private void addContinuation(MatrixCursor rows,String folder,int page){
         MatrixCursor.RowBuilder row=rows.newRow();
