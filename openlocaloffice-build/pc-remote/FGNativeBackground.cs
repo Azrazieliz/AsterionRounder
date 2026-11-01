@@ -11,9 +11,13 @@ namespace FileGestioner.NativeRemote
     [BepInPlugin("com.filegestioner.nativebackground","File Gestioner Native Background","1.1.0")]
     public sealed class NativeBackground : BaseUnityPlugin
     {
-        private readonly string folder=Path.Combine(
-            Path.Combine(Environment.GetEnvironmentVariable("USERPROFILE"),".file-gestioner"),
-            "native-3d");
+        // Studio inherits this path from the authenticated PC bridge.
+        // Never fill Windows C: with hundreds of cloud-supplied character cards.
+        private readonly string folder=
+            !String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FG_NATIVE3D_ROOT"))?
+                Environment.GetEnvironmentVariable("FG_NATIVE3D_ROOT"):
+                Path.Combine(Path.Combine(
+                    Environment.GetEnvironmentVariable("USERPROFILE"),".file-gestioner"),"native-3d");
         private string requestPath;
         private string framePath;
         private string errorPath;
