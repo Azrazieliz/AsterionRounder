@@ -7,6 +7,7 @@ const reader=fs.readFileSync('app/src/main/assets/universal-reader.js','utf8');
 const main=fs.readFileSync('app/src/main/java/com/openlocal/office/MainActivity.java','utf8');
 const book=fs.readFileSync('app/src/main/java/com/openlocal/office/core/BookArchive.java','utf8');
 const stream=fs.readFileSync('app/src/main/java/com/openlocal/office/core/StreamedText.java','utf8');
+const spool=fs.readFileSync('app/src/main/java/com/openlocal/office/core/RemoteBookSpool.java','utf8');
 const html=fs.readFileSync('app/src/main/assets/index.html','utf8');
 const style=fs.readFileSync('app/src/main/assets/style.css','utf8');
 function need(value,message){assert(value,message);}
@@ -15,7 +16,14 @@ need(book.includes('META-INF/container.xml'),'Must locate EPUB package through c
 need(book.includes('get("idref")')===false&&book.includes('field(item,"idref")'),
      'Spine items need idref lookup');
 need(book.includes('new SeekableZip(handle)'),'Must index seekable SAF ZIP without reopening or copying file');
-need(book.includes('BufferedOutputStream(new FileOutputStream(temp)'),'Nonseekable provider must use disk spool');
+need(book.includes('RemoteBookSpool.obtain(context,uri,advertised,preview)')&&
+     spool.includes('BufferedOutputStream(')&&spool.includes('new FileOutputStream(pending)'),
+     'Nonseekable provider must use a serialized, transient disk spool');
+need(spool.includes('synchronized(lock)')&&
+     spool.includes('reading-volatile-v3')&&
+     spool.includes('completedFile(Context ctx,Uri uri,long expected)')&&
+     book.includes('temp=completed')&&book.includes('temporary.delete()'),
+     'Pipe-only archive scratch must be session scoped, not a persistent whole-book cache');
 need(book.includes('MAX_CHAPTER_BYTES'),'Large book chunks must remain bounded');
 need(book.includes('WebResourceResponse response('),'Illustrations must stream individually through WebView');
 need(!book.includes('new byte[(int)'),'Book may never be cast to an in-memory int array');

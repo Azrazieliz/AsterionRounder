@@ -477,6 +477,7 @@ function archive(){
  let entries=[];
  try{entries=JSON.parse(bridge()?.getArchiveEntries?.()||'[]');}catch(_){}
  const isComic=(doc.format==='cbz'||doc.comicMode===true)&&!doc.forceArchiveList;
+ const remoteArchive=doc.cloudSource===true;
  if(isComic){
    entries=entries.filter(e=>/\.(png|jpe?g|gif|webp|bmp|avif|heic|heif)$/i.test(e.name));
    entries.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
@@ -500,11 +501,13 @@ function archive(){
    body.appendChild(E('p','fg-reader-empty','Archive has no previewable entries.'));
    stage(bar,body);return;
  }
- function content(entry,dest){
+ function content(entry,dest,onSettled){
    dest.replaceChildren();
+   let completed=false;
+   const settle=()=>{if(completed)return;completed=true;onSettled?.();};
    if(!entry.preview){
      dest.appendChild(E('p','fg-reader-empty','This entry cannot be previewed safely.'));
-     return;
+     settle();return;
    }
    try{
      const data=entry.streamed?'':(bridge()?.getArchiveEntryBase64?.(entry.name)||'');
@@ -512,25 +515,52 @@ function archive(){
      if(/\.(png|jpe?g|gif|webp|bmp|avif)$/i.test(entry.name)){
        const ext=entry.name.split('.').pop().toLowerCase();
        const im=E('img','fg-archive-img');im.alt=entry.name;
-       im.loading='lazy';
+       im.loading='eager';
+       let watchdog=0;
        im.addEventListener('load',()=>{
+         clearTimeout(watchdog);settle();
          if(isComic)bridge()?.readerDiagnostic?.('COMIC_IMAGE_LOADED');
-       },{once:true});
+       });
+       im.addEventListener('error',()=>{
+         clearTimeout(watchdog);
+         im.removeAttribute('src');
+         const retry=button('Retry image',()=>{
+            retry.remove();
+            im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
+              'data:image/jpeg;base64,'+data;
+         });
+         retry.classList.add('fg-image-retry');
+         dest.appendChild(retry);
+         settle();
+         bridge()?.readerDiagnostic?.('ARCHIVE_IMAGE_FAILED');
+       });
        im.src=entry.streamed?(bridge()?.getArchiveImageUrl?.(entry.name)||''):
          'data:image/'+(ext==='jpg'?'jpeg':ext)+';base64,'+data;
        dest.appendChild(im);
+       watchdog=setTimeout(()=>{
+         if(im.isConnected && !(im.complete&&im.naturalWidth>0)){
+           // Timeout exposes a retry of the same original cloud range stream.
+           // It MUST NOT activate a different URL, image preview, or sample.
+           im.removeAttribute('src');
+           im.dispatchEvent(new Event('error'));
+           bridge()?.readerDiagnostic?.('ARCHIVE_ORIGINAL_STREAM_TIMEOUT');
+         }
+       },remoteArchive?30000:12000);
      }else{
        dest.appendChild(E('pre','fg-document-code',
          new TextDecoder().decode(decode(data))));
+       settle();
      }
    }catch(error){
      dest.appendChild(E('p','fg-reader-empty',
        'Cannot preview '+entry.name+': '+String(error.message||error)));
+     settle();
    }
  }
  if(isComic){
    const stack=E('div','fg-pdf-stack fg-comic-stack'),cells=[],loaded=new Map();
-   let disposed=false,observer=null,scheduled=false;
+   let disposed=false,observer=null,scheduled=false,inFlight=0;
+   const MAX_IMAGE_FETCHES=remoteArchive?2:3;
    const queue=new Set();
    const root=E('div','fg-pdf-container');
    function enqueue(i){
@@ -540,16 +570,35 @@ function archive(){
    }
    function draw(){
      scheduled=false;
-     if(disposed||!queue.size)return;
+     if(disposed||!queue.size||inFlight>=MAX_IMAGE_FETCHES)return;
      const i=queue.values().next().value;queue.delete(i);
      const frame=cells[i],rect=frame.getBoundingClientRect(),view=body.getBoundingClientRect();
-     if(rect.bottom>=view.top-2*body.clientHeight&&rect.top<=view.bottom+2*body.clientHeight){
+     if(rect.bottom>=view.top-body.clientHeight&&rect.top<=view.bottom+body.clientHeight){
        const target=E('div','fg-comic-page');
-       content(entries[i],target);
+       // Once the placeholder is replaced, the IMG still has no intrinsic
+       // size until its network bytes arrive. Preserve the viewport slot,
+       // otherwise every subsequent page collapses into view at once.
+       if(remoteArchive)target.style.minHeight='85vh';
+       inFlight++;
+       let released=false;
+       const release=()=>{
+         if(released)return;released=true;
+         const ready=target.querySelector('img');
+         if(ready?.naturalWidth>0&&ready?.naturalHeight>0)
+           target.style.minHeight='';
+         inFlight=Math.max(0,inFlight-1);
+         if(!disposed&&queue.size&&!scheduled){
+           scheduled=true;requestAnimationFrame(draw);
+         }
+       };
+       target.rounderRelease=release;
+       content(entries[i],target,release);
        frame.replaceChildren(target);loaded.set(i,target);
      }
      trim();
-     if(queue.size){scheduled=true;requestAnimationFrame(draw);}
+     if(queue.size&&inFlight<MAX_IMAGE_FETCHES){
+       scheduled=true;requestAnimationFrame(draw);
+     }
    }
    function trim(){
      const view=body.getBoundingClientRect();
@@ -557,6 +606,7 @@ function archive(){
        const rect=cells[i].getBoundingClientRect();
        if(rect.bottom<view.top-3*body.clientHeight||
           rect.top>view.bottom+3*body.clientHeight){
+         target.rounderRelease?.();
          target.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));
          loaded.delete(i);
          cells[i].replaceChildren(E('div','fg-pdf-skeleton','Image '+(i+1)));
@@ -565,6 +615,7 @@ function archive(){
    }
    entries.forEach((entry,i)=>{
      const frame=E('section','fg-comic-section');
+     frame.style.minHeight='80vh';
      frame.dataset.page=String(i+1);
      frame.setAttribute('aria-label','Comic image '+(i+1)+' '+entry.name);
      frame.appendChild(E('div','fg-pdf-skeleton','Image '+(i+1)));
@@ -575,7 +626,7 @@ function archive(){
      observer=new IntersectionObserver(items=>{
        for(const item of items)if(item.isIntersecting)
          enqueue(Number(item.target.dataset.page)-1);
-     },{root:body,rootMargin:'90% 0px'});
+     },{root:body,rootMargin:'30% 0px'});
      cells.forEach(c=>observer.observe(c));
    }
    let raf=0;
@@ -605,8 +656,10 @@ function archive(){
    activeReaderCleanup=()=>{
      disposed=true;observer?.disconnect();queue.clear();
      if(raf)cancelAnimationFrame(raf);
-     for(const cell of loaded.values())
+     for(const cell of loaded.values()){
+       cell.rounderRelease?.();
        cell.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));
+     }
      loaded.clear();
    };
  }else{

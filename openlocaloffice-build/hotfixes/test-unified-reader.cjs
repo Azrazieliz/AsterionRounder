@@ -66,27 +66,22 @@ for(const d of [
  mockWindow.loadDocument(d);flush();
  const active=mockWindow.FileGestionerUnifiedReader.current();
  assert(active,'Missing controller for '+d.type+' '+d.format);
- const dock=work.children.filter(x=>x.id==='fg-unified-dock').at(-1);
- assert(dock,'Missing floating zoom dock for '+d.type);
- assert.strictEqual(dock.children.length,4,'Unified dock must expose zoom out, scale, zoom in, fit');
- dock.children[2].listeners.click[0]();
- if(d.type==='image'||d.format==='cbz'||d.comicMode===true)
-   assert.strictEqual(active.target.style.width,'125%','Visual zoom must change real width');
- else if(d.type==='spreadsheet'||d.format==='zip')
-   assert.strictEqual(active.target.style.zoom,'1.25','Native office/archive zoom must change layout');
- else if(d.type==='sdocx')
-   assert.strictEqual(active.target.style.fontSize,'20px');
- else if(d.type==='docx'||d.type==='reader'||d.type==='binary')
-   assert.strictEqual(active.target.style['--fg-size'],'1.25','Text zoom must reflow');
- dock.children[3].listeners.click[0]();
- assert.strictEqual(dock.children[1].textContent,'100%','Fit must restore normal size');
+ assert(!work.children.some(x=>x.id==='fg-unified-dock'),
+  'Zoom dock must not be mounted for '+d.type);
+ assert.strictEqual(active.target.style.width||'','',
+  'Initial zoom must remain fitted, no premature width expansion');
  let blocked=false;
  const finger=(x,y)=>({clientX:x,clientY:y});
  active.scroller.emit('touchstart',{touches:[finger(100,100),finger(200,100)]});
  active.scroller.emit('touchmove',{touches:[finger(60,100),finger(240,100)],
    preventDefault:()=>{blocked=true;}});
  assert(blocked,'Pinch must prevent native multi-touch scroll for '+d.type);
- assert(Number(dock.children[1].textContent.replace('%',''))>100,'Pinch must zoom '+d.type);
+ assert(active.kind&&active.zoomTo,'Pinch controller must remain active');
+ if(d.type==='image'||d.format==='cbz'||d.comicMode===true)
+   assert(Number.parseInt(active.target.style.width)>100,'Pinch must enlarge visual content');
+ active.zoomTo(1);
+ if(d.type==='image'||d.format==='cbz'||d.comicMode===true)
+   assert.strictEqual(active.target.style.width,'100%','Fit width reset must restore base');
 }
 for(const type of ['pdf','model3d']){
  mockWindow.loadDocument({type});
