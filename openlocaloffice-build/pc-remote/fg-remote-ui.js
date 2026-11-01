@@ -120,7 +120,7 @@ async function render(){
 function requestFrame(){if(!active||dead)return;if(busy)scheduled=true;else render();}
 async function awaitNativeReady(sid){
   const started=Date.now();
-  while(!dead&&active===sid&&Date.now()-started<110000){
+  while(!dead&&active===sid&&Date.now()-started<300000){
     try{
       const result=await (await api('/api/status?session='+encodeURIComponent(sid))).json();
       if(dead||active!==sid)return;
