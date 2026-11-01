@@ -154,6 +154,7 @@ jobs:
           python3 ../hotfixes/apply-rounder-classic-library-20261101.py
           python3 ../hotfixes/apply-rounder-video-premium-20261101.py
           python3 ../hotfixes/apply-rounder-book-speed-20261101.py
+          python3 ../hotfixes/apply-rounder-aspect-grid-archive-20261101.py
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
@@ -210,6 +211,7 @@ jobs:
           node ../hotfixes/test-media-image-regressions.cjs
           node ../hotfixes/test-rounder-end-to-end-contract.cjs
           node ../hotfixes/test-rounder-premium-video-20261101.cjs
+          node ../hotfixes/test-rounder-aspect-archive-20261101.cjs
           python3 -m py_compile ../hotfixes/apply-reading-platform-20261030.py ../hotfixes/apply-reader-controls-20261030.py
           node --check app/src/main/assets/reader-controls.js
           grep -Fq 'openFolderImages' app/src/main/java/com/openlocal/office/MainActivity.java

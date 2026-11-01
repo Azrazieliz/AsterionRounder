@@ -219,8 +219,8 @@ assert.match(libUi,/welcome.hidden=true;dashboard.hidden=true/,
   'Keep the Home and Welcome dashboard removed');
 assert.match(css,/repeat\(3,minmax\(0,1fr\)\)!important/,
   'Restore original v0.15.10 library preview grid');
-assert.doesNotMatch(css,/\.fg-library-root \.fg-lib-more,\.fg-library-root \.fg-lib-type\{display:none!important\}/,
-  'Restore original file actions and type presentation');
+assert.match(css,/\.fg-library-root \.fg-lib-more,\s*\.fg-library-root \.fg-lib-type\{display:none!important\}/,
+  'Hide the redundant three-dot and file-type covers while retaining long-press file actions');
 assert.match(controls,/mode==='pages'\?'Pages':mode==='hscroll'\?'H-scroll':'V-scroll'/,
   'Reading mode button must name the ACTIVE mode');
 assert.match(controls,/readerPage=0/,

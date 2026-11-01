@@ -6,7 +6,7 @@ const archive=fs.readFileSync('app/src/main/assets/universal-reader.js','utf8');
 const lib=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
 const style=fs.readFileSync('app/src/main/assets/style.css','utf8');
 const gradle=fs.readFileSync('app/build.gradle.kts','utf8');
-assert.match(media,/RESIZE_MODE_ZOOM/,'Fill the screen without letterboxing by default');
+assert.match(media,/RESIZE_MODE_FIT/,'Preserve the entire video at its native aspect ratio by default');
 assert.match(media,/new android\.view\.ScaleGestureDetector/,'Pinch zoom must handle two pointers');
 assert.match(media,/videoScale\[0\]\*detector\.getScaleFactor/,'Video magnification must be adjustable');
 assert.match(media,/display\.setScaleX\(scale\);display\.setScaleY\(scale\)/,'Zoom must affect video');
@@ -26,6 +26,6 @@ assert.match(archive,/rootMargin:'65% 0px'/,'ZIP image prefetch begins before vi
 assert.match(lib,/search\.placeholder='Search your books'/,'Library presentation restored');
 assert.match(lib,/welcome\.hidden=true;dashboard\.hidden=true/,'Home stays removed');
 assert.match(style,/repeat\(3,minmax\(0,1fr\)\)!important/,'Preserve restored original library sizing');
-assert.match(gradle,/versionCode\s*=\s*35/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.13"/);
+assert.match(gradle,/versionCode\s*=\s*36/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.14"/);
 console.log('ROUNDERVER_PREMIUM_VIDEO_CONTRACT_PASS');
