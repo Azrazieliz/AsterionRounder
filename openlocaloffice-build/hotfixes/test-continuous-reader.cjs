@@ -77,14 +77,8 @@ assert(calls.length<=2,'Initial PDF load may only rasterize visible-near pages')
 const stack=visit(root,x=>x.className==='fg-pdf-stack')[0];
 const pdfBody=visit(root,x=>x.className.includes('fg-pdf-scroll'))[0];
 assert(stack&&pdfBody,'The reader must provide a zoomable scroll surface');
-const plus=visit(root,x=>x.tagName==='button'&&x.textContent==='+')[0];
-const fit=visit(root,x=>x.tagName==='button'&&x.textContent==='Fit')[0];
-assert(plus?.onclick&&fit?.onclick,'Zoom controls must be functional');
-plus.onclick();
-assert.strictEqual(stack.style.width,'125%','Plus must zoom actual page width, not just a label');
-assert(pdfBody.scrollLeft>=0,'Zoom cannot create negative horizontal scroll position');
-fit.onclick();
-assert.strictEqual(stack.style.width,'100%','Fit must restore screen width');
+assert(!buttons().includes('Fit')&&!buttons().includes('100%')&&!buttons().includes('+')&&!buttons().includes('−'),
+  'Reader must not expose manual Fit, percentage or zoom buttons');
 const finger=(x,y)=>({clientX:x,clientY:y});
 pdfBody.emit('touchstart',{touches:[finger(100,200),finger(200,200)]});
 let prevented=false;
