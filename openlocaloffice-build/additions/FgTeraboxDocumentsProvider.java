@@ -322,9 +322,10 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
             }
             Bundle result=new Bundle();
             result.putBoolean(DocumentsContract.EXTRA_LOADING,
-                (cached==null||stale)&&pageFlights.contains(key));
+                cached==null&&pageFlights.contains(key));
             // On errors do not silently return an empty, complete directory.
-            result.putBoolean("asterion.page.ready",cached!=null&&!stale);
+            // Serve an already indexed page immediately while it refreshes in background.
+            result.putBoolean("asterion.page.ready",cached!=null);
             result.putInt("asterion.page.number",page);
             rows.setExtras(result);
             rows.setNotificationUri(getContext().getContentResolver(),
@@ -369,7 +370,8 @@ public final class FgTeraboxDocumentsProvider extends DocumentsProvider {
         if(now<failedPages.getOrDefault(key,0L)||!pageFlights.add(key))return;
         pageWorkers.execute(()->{
             try{
-                JSONArray cloud=client.listPage(folder,page);
+                // Reuse the SAME native TeraBox metadata cache as Rounder browsing.
+                JSONArray cloud=client.listPageCached(folder,page);
                 JSONArray minimal=new JSONArray();
                 for(int i=0;i<cloud.length();i++){
                     JSONObject item=cloud.optJSONObject(i);
