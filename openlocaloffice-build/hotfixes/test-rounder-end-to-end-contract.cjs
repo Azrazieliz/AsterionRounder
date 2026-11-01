@@ -213,14 +213,14 @@ const libUi=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
 const controls=fs.readFileSync('app/src/main/assets/reader-controls.js','utf8');
 const archives=fs.readFileSync('app/src/main/assets/universal-reader.js','utf8');
 const epub=fs.readFileSync('app/src/main/assets/epub-reader.js','utf8');
-assert.match(libUi,/deck.classList.toggle\('fg-lib-compact-files'/,
-  'Document-heavy folders must use compact rows');
+assert.doesNotMatch(libUi,/deck.classList.toggle\('fg-lib-compact-files'/,
+  'Restore the original v0.15.10 collection cards, without compact-file redesign');
 assert.match(libUi,/welcome.hidden=true;dashboard.hidden=true/,
-  'Remove nonfunctional welcome dashboard');
-assert.match(css,/repeat\(2,minmax\(0,1fr\)\)!important/,
-  'Mobile previews should be two wide');
-assert.match(css,/\.fg-library-root \.fg-lib-more,\.fg-library-root \.fg-lib-type\{display:none!important\}/,
-  'Do not cover filenames or previews with redundant tags and menu buttons');
+  'Keep the Home and Welcome dashboard removed');
+assert.match(css,/repeat\(3,minmax\(0,1fr\)\)!important/,
+  'Restore original v0.15.10 library preview grid');
+assert.doesNotMatch(css,/\.fg-library-root \.fg-lib-more,\.fg-library-root \.fg-lib-type\{display:none!important\}/,
+  'Restore original file actions and type presentation');
 assert.match(controls,/mode==='pages'\?'Pages':mode==='hscroll'\?'H-scroll':'V-scroll'/,
   'Reading mode button must name the ACTIVE mode');
 assert.match(controls,/readerPage=0/,
