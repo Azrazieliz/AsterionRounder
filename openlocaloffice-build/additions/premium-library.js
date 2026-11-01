@@ -27,6 +27,7 @@ const tbBtn=b('TeraBox','fg-lib-secondary',()=>{
 tbBtn.title='Secure native TeraBox storage';
 actions.append(openBtn,collectionBtn,tbBtn);header.append(brand,actions);
 const welcome=E('section','fg-lib-welcome');
+const dashboard=E('section','fg-lib-dashboard');
 const kicker=E('p','fg-lib-kicker','OFFLINE READING');
 const hero=E('h1','fg-lib-hero','Your files. Your control.');
 const subtitle=E('p','fg-lib-subtitle',
@@ -52,7 +53,7 @@ const empty=E('div','fg-lib-empty');
 const loading=E('div','fg-lib-loading','Loading your collection…');
 const footer=E('div','fg-lib-footer',
   'YOUR FILES · LOCAL & CONNECTED STORAGE');
-body.append(welcome,toolbar,filters,loading,deck,empty,footer);
+body.append(welcome,dashboard,toolbar,filters,loading,deck,empty,footer);
 root.append(header,body);
 document.body.insertBefore(root,document.getElementById('busy')||null);
 const categories=[
@@ -71,6 +72,55 @@ const PAGE=96;
 const naturalCollator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
 let catalogRevision=0,indexedRevision=-1,indexedKey='',indexedEntries=[];
 let collectionCacheKey='';
+const RECENT_KEY='asterion-rounder-recent-v1';
+let recents=[],dashboardKey='';
+try{const stored=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');
+ if(Array.isArray(stored))recents=stored.filter(x=>x&&typeof x.name==='string').slice(0,24);
+}catch(_){}
+function recordRecent(item){
+ if(item.folder)return;
+ const id=item.path||item.uri;if(!id)return;
+ recents=[{name:item.name,title:item.title||item.name,uri:item.uri||'',
+  path:item.path||'',terabox:!!item.terabox,size:item.size||0,
+  modified:item.modified||0,at:Date.now()},
+  ...recents.filter(x=>(x.path||x.uri)!==id)].slice(0,24);
+ try{localStorage.setItem(RECENT_KEY,JSON.stringify(recents));}catch(_){}
+ dashboardKey='';
+}
+function drawDashboard(){
+ if(stack.length||currentFolder){dashboard.hidden=true;return;}
+ dashboard.hidden=false;
+ const recent=recents.filter(x=>x.terabox===cloudMode).slice(0,8);
+ const seen=new Set(recent.map(x=>x.path||x.uri));
+ const suggested=entries.filter(x=>!x.folder&&!seen.has(x.path||x.uri))
+  .slice().sort((a,b)=>(b.modified||0)-(a.modified||0)).slice(0,8);
+ const signature=(cloudMode?'cloud':'local')+'|'+recent.map(x=>x.path||x.uri).join('|')
+  +'|'+suggested.map(x=>x.path||x.uri).join('|');
+ if(signature===dashboardKey)return;
+ dashboardKey=signature;dashboard.replaceChildren();
+ dashboard.append(E('strong','fg-home-heading','Welcome back'));
+ const quick=E('div','fg-home-quick');
+ quick.append(
+  b('TeraBox','fg-home-action',()=>{cloudMode=true;currentFolder='';stack=[];show();}),
+  b('Local folders','fg-home-action',()=>{cloudMode=false;currentFolder='';stack=[];show();}),
+  b('Open file','fg-home-action',()=>bridge()?.pickFile?.()));
+ dashboard.append(quick);
+ function section(title,items){
+  if(!items.length)return;
+  const panel=E('section','fg-home-section');
+  panel.append(E('strong','fg-home-label',title));
+  const strip=E('div','fg-home-strip');
+  for(const entry of items){
+   const button=b((classify(entry)==='video'?'▶ ':'')+entry.name,'fg-home-recent',()=>{
+    openBook(entries.find(x=>(x.path||x.uri)===(entry.path||entry.uri))||entry);
+   });
+   button.title=entry.name;strip.append(button);
+  }
+  panel.append(strip);dashboard.append(panel);
+ }
+ section('Continue reading / watching',recent);
+ section('Recently added',suggested);
+}
 function classify(entry){
  if(entry.folder)return 'folder';
  const x=entry.name.toLowerCase();
@@ -108,6 +158,7 @@ function openBook(item){
    // A folder is a folder. Image reading is a deliberate separate action.
    enterFolder(item.id);return;
  }
+ recordRecent(item);
  activeUri=item.uri;
  root.classList.add('fg-lib-hidden');
  visible=false;
@@ -420,7 +471,7 @@ function card(item,i){
 }
 function render(){
  if(renderTimer){clearTimeout(renderTimer);renderTimer=0;}
- deck.className='fg-lib-grid'+(list?' fg-lib-list':'');
+ deck.className='fg-lib-grid'+(list?' fg-lib-list':'')+(filter==='video'?' fg-lib-video-grid':'');
  // Preserve loaded cover IMG nodes until the visible signature actually changes.
  empty.replaceChildren();
  root.querySelectorAll('.fg-lib-pager').forEach(n=>n.remove());
@@ -507,6 +558,7 @@ function render(){
      deck.before(earlier);
    }
  }
+ drawDashboard();
  count.textContent=entries.length+(scanning?' · scanning…':' files')+
    ' · showing '+(shown.length?String(pageStart+1):'0')+
    '–'+Math.min(shown.length,pageStart+PAGE);
@@ -651,13 +703,14 @@ function show(){
  document.getElementById('home')?.classList.add('hidden');
  document.getElementById('work')?.classList.add('hidden');
  document.body.classList.remove('fg-book-mode','fg-pdf-reading','fg-unified-reading');
- if(!cloudMode&&!bridge()?.getLibraryRoot?.()){showEmpty();return;}
+ if(!cloudMode&&!bridge()?.getLibraryRoot?.()){showEmpty();drawDashboard();return;}
  welcome.classList.add('fg-lib-hidden');toolbar.classList.remove('fg-lib-hidden');
  tbBtn.setAttribute('aria-pressed',cloudMode?'true':'false');
  collectionBtn.setAttribute('aria-pressed',cloudMode?'false':'true');
  heading.textContent=cloudMode?'TeraBox':'Your library';
  filters.classList.remove('fg-lib-hidden');
  createFilters();
+ drawDashboard();
  request();
 }
 function append(payload){
