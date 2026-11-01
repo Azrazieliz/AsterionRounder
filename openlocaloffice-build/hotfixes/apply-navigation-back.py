@@ -5,9 +5,12 @@ main=Path("app/src/main/java/com/openlocal/office/MainActivity.java")
 java=main.read_text()
 # The app uses a WebView. Predictive/system Back cannot simply finish the
 # Activity while a document, book drawer or collection child is visible.
-method='''    @Override public void onBackPressed() {
-        if(web==null){
-            super.onBackPressed();
+method='''    private android.window.OnBackInvokedCallback systemBackCallback;
+    private long lastRootBackMillis;
+
+    private void navigateSystemBack() {
+        if(web==null) {
+            finish();
             return;
         }
         web.evaluateJavascript(
@@ -16,10 +19,18 @@ method='''    @Override public void onBackPressed() {
             "window.FileGestionerLibrary.handleBack());}catch(e){return false;}})()",
             handled -> {
                 if(!"true".equals(handled)){
-                    // At the library root, Android may perform its normal Back.
-                    finish();
+                    long now=android.os.SystemClock.elapsedRealtime();
+                    if(now-lastRootBackMillis<2200L)finish();
+                    else {
+                        lastRootBackMillis=now;
+                        android.widget.Toast.makeText(this,
+                            "Press Back again to exit",android.widget.Toast.LENGTH_SHORT).show();
+                    }
                 }
             });
+    }
+    @Override public void onBackPressed() {
+        navigateSystemBack();
     }
 '''
 if re.search(r'\bvoid\s+onBackPressed\s*\(',java):
@@ -37,6 +48,24 @@ else:
     anchor="    @Override public void onDestroy() {"
     assert java.count(anchor)==1,"Could not locate Activity lifetime anchor"
     java=java.replace(anchor,method+anchor,1)
+# Android 13+ predictive Back dispatch may bypass the deprecated
+# Activity.onBackPressed() override. Register the same navigation handler with
+# OnBackInvokedDispatcher and release the callback on Activity destruction.
+on_create='''        setContentView(web);'''
+assert java.count(on_create)==1,"Missing WebView creation anchor"
+java=java.replace(on_create,on_create+'''
+        if(android.os.Build.VERSION.SDK_INT>=33){
+            systemBackCallback=this::navigateSystemBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                systemBackCallback);
+        }''',1)
+on_destroy='''    @Override public void onDestroy() {'''
+assert java.count(on_destroy)==1,"Missing Activity cleanup anchor"
+java=java.replace(on_destroy,'''    @Override public void onDestroy() {
+        if(android.os.Build.VERSION.SDK_INT>=33&&systemBackCallback!=null){
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBackCallback);
+        }''',1)
 main.write_text(java)
 gradle=Path("app/build.gradle.kts")
 version=gradle.read_text()
