@@ -33,8 +33,14 @@ assert.match(media,/mediaNavigator.navigate\(-1,false\)/,
   'Previous video is wired to playlist navigation');
 assert.match(media,/mediaNavigator.navigate\(1,false\)/,
   'Next video is wired to playlist navigation');
-assert.match(media,/mediaNavigator.navigate\(0,true\)/,
-  'Shuffle is wired to playlist navigation');
+assert.match(media,/playbackMode==2\?0:1,playbackMode==2/,
+  'Shuffle and Play Next modes must advance through folder navigation');
+assert.match(media,/player.seekTo\(0\);player.play\(\)/,
+  'Replay mode must restart the current video without a download');
+assert.match(media,/refreshPlaybackMode\(modeButtons\)/,
+  'Playback mode choices must have a persistent selected visual state');
+assert.match(media,/modeNames=\{"Play next","Replay","Shuffle"\}/,
+  'Expose all requested playback modes');
 assert.doesNotMatch(media,/playlistPos=new FrameLayout\.LayoutParams/,
   'Legacy fullscreen previous next random text bar must not return');
 assert.match(cloud,/public byte\[\] readRange/, 'Cloud files retain byte-range access');
@@ -69,6 +75,10 @@ assert.match(remote,/requestFrame\(\)/,
 const css=fs.readFileSync('app/src/main/assets/style.css','utf8');
 assert.match(css,/z-index:2147483640!important/,
   '3D scene must sit above image-reader navigation and entry controls');
+assert.match(css,/fg-lib-grid\.fg-lib-video-grid/,
+  'Video cards require a horizontal two-column preview grid');
+assert.match(css,/scroll-snap-type:x mandatory/,
+  'Image pages require horizontal snap behavior');
 const bridgeSource=fs.readFileSync('../pc-remote/fg_remote_server.py','utf8');
 assert.match(bridgeSource,/camera_rotation=\[math\.degrees\(pitch\),180\+math\.degrees\(yaw\),0\]/,
   'Koikatsu orbit must point camera back toward the stationary target');
@@ -82,6 +92,10 @@ assert.match(pages,/PAGE_OFFSET="asterion.page.offset"/,
   'Bulk catalog must be accessible to other Asterion apps using a granted tree');
 assert.match(pages,/terabox-metadata-v1/,
   'Metadata index must survive process restarts');
+assert.match(pages,/JSONArray cloud=client\.listPageCached\(folder,page\)/,
+  'AsterionCore must reuse Rounder native TeraBox metadata cache');
+assert.match(pages,/result\.putBoolean\("asterion.page.ready",cached!=null\)/,
+  'Previously cached pages remain immediately available during refresh');
 assert.match(pages,/queuePage\(folder,next,nextKey,nextFile\)/,
   'Cloud metadata pages must prefetch without opening originals');
 assert.match(metadataClient,/getFilesDir\(\),"terabox-thumbnails-v4"/,
@@ -92,6 +106,22 @@ assert.match(library,/const retainedCards=new Map\(\)/,
   'Re-rendering metadata must not discard already loaded cover IMG nodes');
 assert.match(library,/if\(signature!==lastVisibleKeys\)/,
   'Unchanged library pages must not be rebuilt while metadata arrives');
+assert.doesNotMatch(library,/deck\.replaceChildren\(\);empty\.replaceChildren\(\)/,
+  'Do not clear visible cover images before checking the catalog signature');
+assert.match(library,/deck\.insertBefore\(node,existing\|\|null\)/,
+  'Keep existing decoded cover nodes while reordering pages');
+assert.match(library,/fg-lib-video-grid/,
+  'Video collection must use a landscape grid');
+assert.match(library,/asterion-rounder-recent-v1/,
+  'Home must retain recently opened files between sessions');
+assert.match(reader,/view\.addEventListener\('pointerup'/,
+  'Touch swipes must navigate images horizontally');
+assert.match(reader,/x<=\.28\)moveImage\(-1\)/,
+  'Tapping the left side must navigate to the previous image');
+assert.match(reader,/imageMode==='pages'\)view\.scrollTo\(\{left:/,
+  'Paged reader must switch horizontally');
+assert.doesNotMatch(reader,/image\.removeAttribute\('src'\)/,
+  'Image timeouts must never remove a displayed image source');
 assert.doesNotMatch(reader,/img\.removeAttribute\('src'\);\s*\}\s*\}\s*\},\{root:view/,
   'Scrolling out of view must not always clear existing image pixels');
 assert.match(reader,/append:payload=>add\(Array\.isArray\(payload\)\?payload:payload\?\.pages\)/,
