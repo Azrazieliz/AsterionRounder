@@ -70,7 +70,9 @@ assert(lib.includes("['all','All files'],['image','Images']"),
   'Dedicated Images filter missing');
 assert(js.includes('fg-image-toolbar')&&!js.includes('requestAnimationFrame(()=>requestAnimationFrame(attach));\n   return;'),
   'Image viewer still shows EPUB controls');
-assert(js.includes('imageMode=data.standalone'), 'Single-image smart-fit mode missing');
+assert(js.includes("let imageMode='pages'"), 'Image folders must default to horizontal page navigation');
+assert(js.includes("view.scrollTo({left:section.offsetLeft"), 'Image pages must navigate horizontally');
+assert(js.includes("if(x<=.28)moveImage(-1)"), 'Tapping the left side must navigate backward');
 assert(style.includes('.fg-image-reader .fg-image-paged .fg-image-rotated .fg-folder-image'),
   'Landscape pictures still cannot use portrait screen efficiently');
 assert(lib.includes('function showFileActions(item)')&&
