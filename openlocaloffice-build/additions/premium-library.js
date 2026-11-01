@@ -72,6 +72,7 @@ const PAGE=96;
 const naturalCollator=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
 let catalogRevision=0,indexedRevision=-1,indexedKey='',indexedEntries=[];
 let collectionCacheKey='';
+const entryIds=new Set();
 const RECENT_KEY='asterion-rounder-recent-v1';
 let recents=[],dashboardKey='';
 try{const stored=JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');
@@ -92,8 +93,8 @@ function drawDashboard(){
  dashboard.hidden=false;
  const recent=recents.filter(x=>x.terabox===cloudMode).slice(0,8);
  const seen=new Set(recent.map(x=>x.path||x.uri));
- const suggested=entries.filter(x=>!x.folder&&!seen.has(x.path||x.uri))
-  .slice().sort((a,b)=>(b.modified||0)-(a.modified||0)).slice(0,8);
+ const suggested=entries.slice(-120).filter(x=>!x.folder&&!seen.has(x.path||x.uri))
+  .sort((a,b)=>(b.modified||0)-(a.modified||0)).slice(0,8);
  const signature=(cloudMode?'cloud':'local')+'|'+recent.map(x=>x.path||x.uri).join('|')
   +'|'+suggested.map(x=>x.path||x.uri).join('|');
  if(signature===dashboardKey)return;
@@ -584,7 +585,7 @@ function request(){
  const sameCollection=collectionCacheKey===nextCollectionKey;
  collectionCacheKey=nextCollectionKey;
  activeVersion=null;scanning=true;pageStart=0;
- if(!sameCollection)entries=[];
+ if(!sameCollection){entries=[];entryIds.clear();}
  loaded=false;
  catalogRevision++;indexedRevision=-1;indexedEntries=[];
  // Reuse existing IMG nodes when revisiting this folder; unchanged covers
@@ -647,7 +648,7 @@ tbStyles.textContent=[
 ].join('\n');
 document.head.append(tbStyles);
 function showEmpty(){
- loaded=false;entries=[];deck.replaceChildren();loading.classList.add('fg-lib-hidden');
+ loaded=false;entries=[];entryIds.clear();deck.replaceChildren();loading.classList.add('fg-lib-hidden');
  welcome.classList.remove('fg-lib-hidden');toolbar.classList.add('fg-lib-hidden');
  filters.classList.add('fg-lib-hidden');empty.classList.remove('fg-lib-hidden');
  empty.replaceChildren();
@@ -723,9 +724,8 @@ function append(payload){
  }
  if(payload.version!==activeVersion||payload.folder!==currentFolder)return;
  const fresh=payload.items.filter(e=>!e.folder&&classify(e)==='image');
- const present=new Set(entries.map(e=>e.path||e.uri||e.id));
  for(const item of payload.items){const id=item.path||item.uri||item.id;
-   if(!present.has(id)){entries.push(item);present.add(id);}
+   if(!entryIds.has(id)){entries.push(item);entryIds.add(id);}
  }
  catalogRevision++;
  scanning=!payload.finished;loaded=true;
@@ -791,6 +791,7 @@ function append(payload){
 function receive(payload){
  loaded=true;
  entries=Array.isArray(payload.items)?payload.items:[];
+  entryIds.clear();for(const e of entries)entryIds.add(e.path||e.uri||e.id);
  catalogRevision++;
  currentFolder=payload.folder||currentFolder;
  loading.classList.add('fg-lib-hidden');deck.classList.remove('fg-lib-hidden');
