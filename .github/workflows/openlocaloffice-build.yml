@@ -149,6 +149,8 @@ jobs:
           python3 ../hotfixes/apply-rounder-video-single-mode-20261101.py
           python3 ../hotfixes/apply-rounder-zip-descriptor-lifetime-20261101.py
           python3 ../hotfixes/apply-rounder-native-pc-transport-20261101.py
+          python3 ../hotfixes/apply-rounder-video-orientation-20261101.py
+          python3 ../hotfixes/apply-rounder-ui-readers-20261101.py
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java

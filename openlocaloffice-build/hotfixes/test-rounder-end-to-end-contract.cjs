@@ -15,7 +15,7 @@ assert.match(archive,/MAX_IMAGE_FETCHES=remoteArchive\?2:3/,
   'Only nearby pages may fetch full images concurrently');
 assert.match(archive,/im\.loading='eager'/,
   'Explicitly scheduled archive images must start fetching');
-assert.match(book,/requested\.size>=2/, 'EPUB must not queue hundreds of chapter streams');
+assert.match(book,/requested\.size>=4/, 'EPUB uses four bounded chapter requests, not an unbounded queue');
 assert.match(book,/EPUB_CHAPTER_RENDERED/, 'EPUB must report actual visible chapter content');
 assert.match(media,/teraboxDirect\)playTeraboxRanges/, 'Cloud video stays on seekable streaming path');
 assert.match(media,/setShowPreviousButton\(false\)/,
@@ -31,8 +31,8 @@ assert.match(media,/display.setUseController\(false\)/,
   'Video hides Media3 controls and uses exactly one Aloha-style transport overlay');
 assert.match(media,/root.addView\(transport,new FrameLayout.LayoutParams\(-2,-2,Gravity.CENTER\)\)/,
   'Compact video transport must remain centered rather than full-width');
-assert.match(media,/root.addView\(footer,new FrameLayout.LayoutParams\(-1,-2,Gravity.BOTTOM\)\)/,
-  'Video seek and modes must have a single compact bottom bar');
+assert.match(media,/root.addView\(footer,footerPosition\)/,
+  'Video seek and small playback-mode control must have one safe-area-aware bottom bar');
 assert.match(media,/mediaNavigator.navigate\(-1,false\)/,
   'Previous video is wired to playlist navigation');
 assert.match(media,/mediaNavigator.navigate\(1,false\)/,
@@ -41,8 +41,14 @@ assert.match(media,/playbackMode==2\?0:1,playbackMode==2/,
   'Shuffle and Play Next modes must advance through folder navigation');
 assert.match(media,/player.seekTo\(0\);player.play\(\)/,
   'Replay mode must restart the current video without a download');
-assert.match(media,/modeSymbol.setText\(playbackSymbol\(\)\)/,
-  'A single compact icon must display the active playback type');
+assert.match(media,/final View modeSymbol=new View\(activity\)/,
+  'A single native-vector icon must display the active playback type');
+assert.match(media,/onVideoSizeChanged/,
+  'Portrait or landscape playback must respect the video dimensions');
+assert.match(media,/SCREEN_ORIENTATION_LOCKED/,
+  'Orientation lock must remain independently clickable');
+assert.match(media,/footerPosition.rightMargin/,
+  'Bottom transport controls must clear the Android landscape navigation area');
 assert.match(media,/playbackMode=\(playbackMode\+1\)%3/,
   'Tapping the small icon must cycle Play Next, Replay and Shuffle');
 assert.doesNotMatch(media,/final LinearLayout modes=new LinearLayout\(activity\)/,
@@ -203,4 +209,26 @@ assert.match(main,/fgAuthenticatedPcFrame\(u\)/,
   'Native PC 3D image proxy must intercept resource requests');
 assert.match(remote,/https:\/\/fg-assets\.invalid\/pc-frame\?/,
   '3D images must load natively instead of browser fetching localhost');
+const libUi=fs.readFileSync('app/src/main/assets/premium-library.js','utf8');
+const controls=fs.readFileSync('app/src/main/assets/reader-controls.js','utf8');
+const archives=fs.readFileSync('app/src/main/assets/universal-reader.js','utf8');
+const epub=fs.readFileSync('app/src/main/assets/epub-reader.js','utf8');
+assert.match(libUi,/deck.classList.toggle\('fg-lib-compact-files'/,
+  'Document-heavy folders must use compact rows');
+assert.match(libUi,/welcome.hidden=true;dashboard.hidden=true/,
+  'Remove nonfunctional welcome dashboard');
+assert.match(css,/repeat\(2,minmax\(0,1fr\)\)!important/,
+  'Mobile previews should be two wide');
+assert.match(css,/\.fg-library-root \.fg-lib-more,\.fg-library-root \.fg-lib-type\{display:none!important\}/,
+  'Do not cover filenames or previews with redundant tags and menu buttons');
+assert.match(controls,/mode==='pages'\?'Pages':mode==='hscroll'\?'H-scroll':'V-scroll'/,
+  'Reading mode button must name the ACTIVE mode');
+assert.match(controls,/readerPage=0/,
+  'Pages mode must retain an explicit page index');
+assert.match(archives,/fg-archive-list fg-archive-compact/,
+  'Noncomic ZIPs must use a compact file list');
+assert.match(epub,/requested.size>=4/,
+  'EPUB chapters may load concurrently rather than fixed pairs');
+assert.match(epub,/Never erase previously rendered illustrations/,
+  'EPUB previously loaded images must remain visible');
 console.log('ASTERION_READER_CONTRACT_PASS');
