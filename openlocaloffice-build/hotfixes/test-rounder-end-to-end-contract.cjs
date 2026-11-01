@@ -41,10 +41,12 @@ assert.match(media,/playbackMode==2\?0:1,playbackMode==2/,
   'Shuffle and Play Next modes must advance through folder navigation');
 assert.match(media,/player.seekTo\(0\);player.play\(\)/,
   'Replay mode must restart the current video without a download');
-assert.match(media,/refreshPlaybackMode\(modeButtons\)/,
-  'Playback mode choices must have a persistent selected visual state');
-assert.match(media,/modeNames=\{"Play next","Replay","Shuffle"\}/,
-  'Expose all requested playback modes');
+assert.match(media,/modeSymbol.setText\(playbackSymbol\(\)\)/,
+  'A single compact icon must display the active playback type');
+assert.match(media,/playbackMode=\(playbackMode\+1\)%3/,
+  'Tapping the small icon must cycle Play Next, Replay and Shuffle');
+assert.doesNotMatch(media,/final LinearLayout modes=new LinearLayout\(activity\)/,
+  'Do not restore the oversized three-button playback mode bar');
 assert.doesNotMatch(media,/playlistPos=new FrameLayout\.LayoutParams/,
   'Legacy fullscreen previous next random text bar must not return');
 assert.match(cloud,/public byte\[\] readRange/, 'Cloud files retain byte-range access');
@@ -189,4 +191,16 @@ for(const source of [
 }
 assert.match(media,/if\(teraboxDirect\)playTeraboxRanges\(\);\s*else play\(original\)/,
   'Remote video must follow the native TeraBox range path, without legacy provider copies');
+const zipSource=fs.readFileSync('app/src/main/java/com/openlocal/office/core/SeekableZip.java','utf8');
+assert.match(zipSource,/memberFd=Os\.dup\(fd\)/,
+  'Every ZIP image stream must survive previous book closure');
+assert.match(zipSource,/Os\.pread\(memberFd,buffer,start,n,offset\)/,
+  'ZIP member reads must use their own retained descriptor');
+const main=fs.readFileSync('app/src/main/java/com/openlocal/office/MainActivity.java','utf8');
+assert.match(main,/getNativePcStatus\(String session\)/,
+  '3D status must bypass file-backed WebView CORS restrictions');
+assert.match(main,/fgAuthenticatedPcFrame\(u\)/,
+  'Native PC 3D image proxy must intercept resource requests');
+assert.match(remote,/https:\/\/fg-assets\.invalid\/pc-frame\?/,
+  '3D images must load natively instead of browser fetching localhost');
 console.log('ASTERION_READER_CONTRACT_PASS');
