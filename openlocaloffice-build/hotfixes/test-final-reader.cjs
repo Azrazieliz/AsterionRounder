@@ -24,4 +24,10 @@ assert(library.includes('handleBack:handleAndroidBack'),'Library navigation meth
 assert(library.includes('drawer.classList.add('),'Back should close reading appearance first');
 assert(library.includes('BACK_TO_LIBRARY'),'Emulator must log library navigation');
 assert(fixture.includes('<!DOCTYPE package PUBLIC'),'EPUB runtime regression must include the failure trigger');
-console.log('PASS: Android-safe EPUB XML, official book covers, first ZIP page and native Back navigation');
+const reader=read('app/src/main/assets/epub-reader.js');
+assert(book.includes('application/x-dtbncx+xml')&&book.includes('navPoint'),
+  'EPUB2 NCX chapter names must be resolved to the actual spine');
+assert(!reader.includes("document.getElementById('openBtn')?.click()"),
+  'EPUB top-left Back must not open the file picker');
+assert(reader.includes('Return to library'),'EPUB toolbar should return to library');
+console.log('PASS: Android-safe EPUB XML, EPUB2 NCX chapters, real covers and Back-to-library navigation');
