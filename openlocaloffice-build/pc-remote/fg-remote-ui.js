@@ -14,6 +14,7 @@ let overlay=null,status=null,viewport=null,frame=null,active=null,kind='cube',bu
 // remains stationary in native CharaStudio/Blender.
 let yaw=0,pitch=0,distance=3.2,panX=0,panY=1.25;
 let contacts=new Map(),lastSpan=0,lastCenter=null,serial=0,dead=false;
+let renderFailures=0,retryTimer=null;
 let lastGestureRequest=0;
 const el=(tag,cls,text)=>{
   const x=document.createElement(tag);
@@ -83,11 +84,34 @@ async function render(){
     const data=await (await api(url)).blob();
     if(dead||at!==serial)return;
     const objectUrl=URL.createObjectURL(data);
+    // Fully decode offscreen before updating the visible phone frame.
+    const next=new Image();
+    try{
+      await new Promise((resolve,reject)=>{
+        next.onload=resolve;next.onerror=()=>reject(Error('Remote frame decode failed'));
+        next.src=objectUrl;
+      });
+    }catch(error){URL.revokeObjectURL(objectUrl);throw error;}
+    if(dead||at!==serial){URL.revokeObjectURL(objectUrl);return;}
     const previous=frame.dataset.objectUrl;
+    frame.onload=()=>{
+      if(dead)return;
+      frame.hidden=false;
+      setStatus('Drag: orbit camera · pinch: zoom · two-finger drag: pan');
+      if(previous)URL.revokeObjectURL(previous);
+    };
     frame.src=objectUrl;frame.dataset.objectUrl=objectUrl;
-    if(previous)URL.revokeObjectURL(previous);
-    setStatus('Native frame received · drawing…');
-  }catch(e){setStatus(String(e.message||e));}
+    renderFailures=0;
+    if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
+  }catch(e){
+    if(dead)return;
+    renderFailures++;
+    setStatus('Remote connection interrupted; retrying: '+String(e.message||e));
+    if(renderFailures<=8&&!retryTimer){
+      retryTimer=setTimeout(()=>{retryTimer=null;requestFrame();},
+        Math.min(9000,800*2**Math.min(renderFailures,4)));
+    }
+  }
   finally{
     busy=false;
     if(scheduled&&!dead){scheduled=false;render();}
@@ -124,12 +148,14 @@ function onOpen(response){
 }
 function close(){
   dead=true;active=null;contacts.clear();serial++;
+  if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
   if(frame?.dataset?.objectUrl)URL.revokeObjectURL(frame.dataset.objectUrl);
   if(overlay)overlay.remove();overlay=null;frame=null;status=null;
   document.body.classList.remove('fg-pc-active');
 }
 function open(nextKind='cube'){
   close();dead=false;kind=nextKind;active=null;busy=false;scheduled=false;
+  renderFailures=0;
   yaw=0;pitch=0;distance=3.2;panX=0;panY=1.25;
   lastSpan=0;lastCenter=null;lastGestureRequest=0;
   overlay=el('section','fg-pc-overlay');overlay.setAttribute('role','dialog');
