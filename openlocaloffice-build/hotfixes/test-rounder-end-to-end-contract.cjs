@@ -11,8 +11,8 @@ assert.match(reader,/section\.style\.minHeight='80vh'/,
   'Pending images reserve viewport height to avoid loading the entire folder');
 assert.match(reader,/index\+8/, 'Bound each new batch to eight images');
 assert(!reader.includes("rootMargin:'320% 0px'"),'Avoid excessive prefetch radius');
-assert.match(archive,/MAX_IMAGE_FETCHES=remoteArchive\?2:3/,
-  'Only nearby pages may fetch full images concurrently');
+assert.match(archive,/const MAX_IMAGE_FETCHES=3/,
+  'At most three nearby archive images may load concurrently');
 assert.match(archive,/im\.loading='eager'/,
   'Explicitly scheduled archive images must start fetching');
 assert.match(book,/requested\.size>=4/, 'EPUB uses four bounded chapter requests, not an unbounded queue');
