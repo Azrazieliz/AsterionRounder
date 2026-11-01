@@ -36,6 +36,7 @@ s=s.replace(anchor,'''        // Video playlists are metadata from the currently
                     parsed.add(new RounderVideo(uri,name,key));
                 }
                 fgVideoQueue=java.util.Collections.unmodifiableList(parsed);
+                fgShuffleBag.clear();
             }catch(Exception ex){
                 android.util.Log.w("FG_MEDIA","Video playlist metadata rejected");
             }
@@ -53,6 +54,9 @@ s=s.replace(anchor,'''    private static final class RounderVideo {
     }
     private volatile java.util.List<RounderVideo> fgVideoQueue=
         java.util.Collections.emptyList();
+    // Persistent randomized order prevents repeating a video until the
+    // current playlist cycle is exhausted, unlike random-next on every tap.
+    private final java.util.ArrayList<Integer> fgShuffleBag=new java.util.ArrayList<>();
     private com.openlocal.office.core.FgMediaPlayer fgMediaSession;
     private String fgVideoKey(Uri uri){
         if(uri==null)return "";
@@ -73,8 +77,23 @@ s=s.replace(anchor,'''    private static final class RounderVideo {
         if(at<0)return;
         int next;
         if(random){
-            next=java.util.concurrent.ThreadLocalRandom.current().nextInt(queue.size()-1);
-            if(next>=at)next++;
+            if(fgShuffleBag.isEmpty()){
+                for(int i=0;i<queue.size();i++)
+                    if(i!=at)fgShuffleBag.add(i);
+                java.util.Collections.shuffle(fgShuffleBag);
+            }
+            // Playlist may have changed or the next random item may equal the
+            // currently playing file; never repeat it immediately.
+            while(!fgShuffleBag.isEmpty() &&
+                (fgShuffleBag.get(fgShuffleBag.size()-1)>=queue.size()||
+                 fgShuffleBag.get(fgShuffleBag.size()-1)==at))
+                fgShuffleBag.remove(fgShuffleBag.size()-1);
+            if(fgShuffleBag.isEmpty()){
+                for(int i=0;i<queue.size();i++)
+                    if(i!=at)fgShuffleBag.add(i);
+                java.util.Collections.shuffle(fgShuffleBag);
+            }
+            next=fgShuffleBag.remove(fgShuffleBag.size()-1);
         }else next=Math.floorMod(at+direction,queue.size());
         RounderVideo item=queue.get(next);
         runOnUiThread(()->showFgMedia(item.uri,item.name,true));
