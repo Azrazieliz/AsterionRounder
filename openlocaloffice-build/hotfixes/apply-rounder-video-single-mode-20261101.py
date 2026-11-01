@@ -10,9 +10,9 @@ def one(old,new,label):
     if s.count(old)!=1:raise RuntimeError(label+" expected 1 got "+str(s.count(old)))
     s=s.replace(old,new,1)
 # Compact geometry and no broad solid bar obscuring the video.
-one("final LinearLayout footer=new LinearLayout(activity);",
+one("final LinearLayout transport=new LinearLayout(activity);",
 """final long[] lastChromeInteraction={android.os.SystemClock.uptimeMillis()};
-            final LinearLayout footer=new LinearLayout(activity);""","chrome lifecycle")
+            final LinearLayout transport=new LinearLayout(activity);""","chrome lifecycle")
 one("footer.setPadding((int)(14*dp),(int)(7*dp),(int)(14*dp),(int)(6*dp));",
     "footer.setPadding((int)(8*dp),0,(int)(8*dp),(int)(5*dp));","footer margins")
 one("footer.setBackgroundColor(0xbd101116);",
