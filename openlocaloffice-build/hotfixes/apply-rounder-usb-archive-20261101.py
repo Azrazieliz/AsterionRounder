@@ -110,4 +110,24 @@ new="""      target.referrerPolicy='no-referrer';target.draggable=false;
       });"""
 assert t.count(old)==1
 book.write_text(t.replace(old,new,1),encoding="utf-8")
+# Two in-flight chapter requests were also serialized by MainActivity's only
+# IO worker, competing with TeraBox and remote PC actions.
+t=book.read_text(encoding="utf-8")
+assert t.count("requested.size<2")==1
+book.write_text(t.replace("requested.size<2","requested.size<4"),encoding="utf-8")
+s=main.read_text(encoding="utf-8")
+old="        @JavascriptInterface public void requestBookChapter(int index,String token){"
+new="""        private final java.util.concurrent.ExecutorService fgChapterWorkers=
+            java.util.concurrent.Executors.newFixedThreadPool(4);
+        @JavascriptInterface public void requestBookChapter(int index,String token){"""
+assert s.count(old)==1
+s=s.replace(old,new,1)
+start=s.index("        @JavascriptInterface public void requestBookChapter(int index,String token){")
+end=s.index("        @JavascriptInterface public String getBookChapter",start)
+segment=s[start:end]
+assert segment.count("            io.execute(()->{")==1
+segment=segment.replace("            io.execute(()->{","            fgChapterWorkers.execute(()->{",1)
+s=s[:start]+segment+s[end:]
+main.write_text(s,encoding="utf-8")
 print("USB_SECURE_PAIR_AND_ARCHIVE_IMAGE_FALLBACK_READY")
+

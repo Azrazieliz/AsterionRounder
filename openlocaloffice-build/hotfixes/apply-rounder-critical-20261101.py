@@ -38,6 +38,8 @@ def library(s):
         "state.siblings=sortReadingSequence(entries.filter(x=>!x.folder&&classify(x)==='image'));","local image sort")
     s=replace(s,"const sorted=entries.filter(e=>!e.folder&&\n   /\\.(epub|pdf|zip|cbz|cbr|jpe?g|png|webp|gif|avif)$/i.test(e.name||''))\n   .sort((a,b)=>naturalCollator.compare(a.name,b.name));",
         "const sorted=sortReadingSequence(entries.filter(e=>!e.folder&&\n   /\\.(epub|pdf|zip|cbz|cbr|jpe?g|png|webp|gif|avif)$/i.test(e.name||'')));","file sibling sort")
+    s=replace(s,"const MAX_CLOUD_COVERS=8;","const MAX_CLOUD_COVERS=12;","bounded cover parallelism")
+    s=replace(s,"{root:body,rootMargin:'320px 0px'}","{root:body,rootMargin:'640px 0px'}","cover prefetch")
     return s
 patch("premium-library.js",library)
 def reader(s):

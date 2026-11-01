@@ -53,7 +53,8 @@ assert(style.includes('display:block!important;height:100%!important;min-height:
   'Folder editor does not fill the reading viewport');
 assert(media.includes('SCREEN_ORIENTATION_SENSOR_LANDSCAPE'),'Video must rotate to landscape');
 assert(media.includes('SYSTEM_UI_FLAG_IMMERSIVE_STICKY'),'Video must hide system bars');
-assert(media.includes('direction*10000L'),'Left/right double tap must skip ten seconds');
+assert(media.includes('player.getCurrentPosition()+amount')&&media.includes('?-10000:10000'),
+  'Left/right double tap must skip ten seconds');
 assert(media.includes('setShowRewindButton(false)')&&media.includes('setShowFastForwardButton(false)'),
   'Video must remove old ten-second buttons');
 assert(media.includes('if(video)leaveVideoFullscreen()'),'Video must restore normal orientation');
