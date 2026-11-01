@@ -11,7 +11,8 @@ const ui=read(root+'assets/premium-library.js');
 const css=read(root+'assets/style.css');
 const book=read(root+'assets/universal-reader.js');
 function need(expr,msg){assert(expr,msg);}
-need(zip.includes('Os.pread(fd'),'Random-access ZIP should read directly from provider FD');
+need(zip.includes('Os.dup(fd)')&&zip.includes('Os.pread(memberFd'),
+  'Random-access ZIP image streams must retain an independent provider FD');
 need(zip.includes('ZIP64_END_SIG')&&zip.includes('ZIP64_LOC_SIG'),
      'ZIP64 support required for multi-gigabyte files');
 need(zip.includes('new Inflater(true)'),'Deflated ZIP pages must stream independently');
