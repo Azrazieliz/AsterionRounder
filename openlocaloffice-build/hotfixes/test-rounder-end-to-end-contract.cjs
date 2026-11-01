@@ -98,6 +98,10 @@ assert.match(pages,/result\.putBoolean\("asterion.page.ready",ready\)/,
   'All available indexed metadata pages must be usable during refresh');
 assert.match(pages,/limit!=4\*INDEX_PAGE_SIZE/,
   'Core connector must support 400-row metadata batches');
+assert.match(pages,/openDocumentThumbnail\(/,
+  'AsterionCore must receive native cached thumbnails, not full original images');
+assert.match(pages,/FLAG_SUPPORTS_THUMBNAIL/,
+  'Rounder must advertise thumbnail support on cloud image documents');
 assert.match(pages,/queuePage\(folder,next,key,file\)/,
   'Cloud metadata pages must prefetch without opening originals');
 assert.match(metadataClient,/getFilesDir\(\),"terabox-thumbnails-v4"/,
