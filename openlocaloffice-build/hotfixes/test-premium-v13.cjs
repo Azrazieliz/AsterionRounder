@@ -11,7 +11,8 @@ const ui=read(root+'assets/premium-library.js');
 const css=read(root+'assets/style.css');
 const book=read(root+'assets/universal-reader.js');
 function need(expr,msg){assert(expr,msg);}
-need(zip.includes('Os.pread(fd'),'Random-access ZIP should read directly from provider FD');
+need(zip.includes('Os.dup(fd)')&&zip.includes('Os.pread(memberFd'),
+  'Random-access ZIP image streams must retain an independent provider FD');
 need(zip.includes('ZIP64_END_SIG')&&zip.includes('ZIP64_LOC_SIG'),
      'ZIP64 support required for multi-gigabyte files');
 need(zip.includes('new Inflater(true)'),'Deflated ZIP pages must stream independently');
@@ -26,8 +27,10 @@ need(lib.includes('PAGE_SIZE=500'),'Bounded collection directory paging');
 need(cover.includes('new Semaphore(2)'),'Only two cover decoders concurrently');
 need(cover.includes('BitmapFactory.Options')&&cover.includes('inSampleSize'),
      'Book covers must sample down to thumbnail dimensions');
-need(cover.includes('isArchive(name)&&size>64L*1024*1024&&!seekable'),
-     'Do not double-copy remote 2 GB archives for thumbnail');
+need(cover.includes('isArchive(name)&&size>64L*1024*1024&&')&&
+     cover.includes('!isExpensiveCloudCover(source,name)&&!seekable')&&
+     cover.includes('final long limit=4L*1024*1024'),
+     'Cloud archive cover requests must be bounded, never spool full 2 GB books');
 need(main.includes('openLibraryFile(String value)'),'Book cover must open original URI');
 need(main.includes('allowedLibraryUris.contains(value)'),'Only approved library items may open');
 need(main.includes('ReaderCovers.open('),'Actual illustration covers must be served offline');
