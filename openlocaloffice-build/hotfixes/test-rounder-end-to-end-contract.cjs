@@ -94,9 +94,11 @@ assert.match(pages,/terabox-metadata-v1/,
   'Metadata index must survive process restarts');
 assert.match(pages,/JSONArray cloud=client\.listPageCached\(folder,page\)/,
   'AsterionCore must reuse Rounder native TeraBox metadata cache');
-assert.match(pages,/result\.putBoolean\("asterion.page.ready",cached!=null\)/,
-  'Previously cached pages remain immediately available during refresh');
-assert.match(pages,/queuePage\(folder,next,nextKey,nextFile\)/,
+assert.match(pages,/result\.putBoolean\("asterion.page.ready",ready\)/,
+  'All available indexed metadata pages must be usable during refresh');
+assert.match(pages,/limit!=4\*INDEX_PAGE_SIZE/,
+  'Core connector must support 400-row metadata batches');
+assert.match(pages,/queuePage\(folder,next,key,file\)/,
   'Cloud metadata pages must prefetch without opening originals');
 assert.match(metadataClient,/getFilesDir\(\),"terabox-thumbnails-v4"/,
   'Only thumbnail images persist in private application files');
