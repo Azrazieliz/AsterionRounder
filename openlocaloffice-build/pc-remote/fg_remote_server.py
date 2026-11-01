@@ -71,9 +71,8 @@ def studio_ready():
     try:return studio_ws({"type":"ping","message":"File Gestioner"}).get("type")=="pong"
     except Exception:return False
 
-def ensure_studio_ready(timeout=38):
-    """Launch the installed native Studio only when a character is requested.
-    Offscreen renderer remains independent from the foreground desktop."""
+def ensure_studio_ready(timeout=240):
+    """Keep native CharaStudio warm across phone sessions (thousands of mods can take minutes)."""
     global STUDIO_RUNNER
     if studio_ready():return True
     if not STUDIO.is_file() or not STUDIO_HELPER.is_file():
@@ -273,6 +272,10 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     print("File Gestioner bridge listening only on PC loopback. Token file:",KEYFILE,flush=True)
     print("USB transport: adb reverse tcp:39273 tcp:39273",flush=True)
+    # Start the real native Studio in the background immediately, avoiding a
+    # multi-minute mod bootstrap after every user action. The GPU remains on PC.
+    threading.Thread(target=ensure_studio_ready,kwargs={"timeout":240},
+        daemon=True,name="asterion-studio-warmup").start()
     ThreadingHTTPServer(("127.0.0.1",39273),Handler).serve_forever()
 
 if __name__=="__main__":main()
