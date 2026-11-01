@@ -19,21 +19,16 @@ if not preferred and os.name=="nt":
 ROOT=pathlib.Path(preferred).expanduser() if preferred else LEGACY_ROOT
 ROOT.mkdir(parents=True,exist_ok=True)
 os.environ["FG_NATIVE3D_ROOT"]=str(ROOT)
-if ROOT!=LEGACY_ROOT:
-    import shutil
-    legacy_token=LEGACY_ROOT/"pair-token.txt"
-    if legacy_token.is_file() and not (ROOT/"pair-token.txt").exists():
-        shutil.copy2(legacy_token,ROOT/"pair-token.txt")
-    legacy_vendor=LEGACY_ROOT/"vendor"
-    if legacy_vendor.is_dir() and not (ROOT/"vendor").is_dir():
-        shutil.copytree(legacy_vendor,ROOT/"vendor")
+# Credentials remain in the existing private location; only large rendering
+# assets move to the spacious D: workspace.
+LEGACY_ROOT.mkdir(parents=True,exist_ok=True)
 BLENDER=pathlib.Path(r"D:\Tools\Blender-5.2.2-LTS\blender-5.2.2-windows-x64\blender.exe")
 STUDIO=pathlib.Path(r"D:\Tools\Steam\steamapps\common\Koikatsu Party\CharaStudio.exe")
 STUDIO_HELPER=pathlib.Path(__file__).with_name("fg_studio_background_window.py")
 STUDIO_LAUNCH_LOCK=threading.Lock()
 STUDIO_RUNNER=None
 RENDER=pathlib.Path(__file__).with_name("fg_blender_frame.py")
-KEYFILE=ROOT/"pair-token.txt"
+KEYFILE=(LEGACY_ROOT/"pair-token.txt") if (LEGACY_ROOT/"pair-token.txt").is_file() else ROOT/"pair-token.txt"
 if not KEYFILE.exists():
     KEYFILE.write_text(secrets.token_urlsafe(32),encoding="ascii")
     try:os.chmod(KEYFILE,0o600)
@@ -61,7 +56,8 @@ def is_koikatsu_card(payload):
 def studio_ws(data,timeout=12):
     # KKStudioSocket runs INSIDE native Koikatsu Studio and talks only to this
     # local process. Never forward the unsecured game WebSocket to the phone.
-    sys.path.insert(0,str(ROOT/"vendor"))
+    vendor=(ROOT/"vendor") if (ROOT/"vendor").is_dir() else LEGACY_ROOT/"vendor"
+    sys.path.insert(0,str(vendor))
     import websocket
     conn=websocket.create_connection("ws://127.0.0.1:8765/ws",timeout=timeout)
     try:
