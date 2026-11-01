@@ -217,7 +217,7 @@ function renderImageFolder(data){
    if(window.AndroidBridge?.returnToExternalFile?.())return;
    window.FileGestionerLibrary?.show?.();
  }
- let imageMode=data.standalone?'pages':'scroll';
+ let imageMode='pages'; // Horizontal page navigation; scroll mode remains available.
  let selectedIndex=pages.findIndex(p=>p?.selected);
  function updateRotation(img){
    if(!img?.naturalWidth||!img?.naturalHeight)return;
@@ -248,6 +248,7 @@ function renderImageFolder(data){
    position.textContent=pages.length?(current+1)+' / '+pages.length+(finished?'':'+'):'0 / …';
    previous.disabled=current===0;
    next.disabled=finished&&current+1>=pages.length;
+   if(!finished&&current>=pages.length-8)window.FileGestionerLibrary?.imageReaderDemand?.();
  }
  function appendBatch(){
    if(!host.isConnected){imageObserver?.disconnect();batchObserver?.disconnect();return;}
@@ -281,7 +282,8 @@ function renderImageFolder(data){
             (image.complete&&image.naturalWidth>0))return;
          // Do not silently switch to a different resource or decode variant.
          // A hung stream becomes an explicit, retryable failure.
-         image.removeAttribute('src');
+         // Preserve loaded pixels during a slow new image fetch.
+         if(image.dataset.loaded!=='yes')image.dispatchEvent(new Event('error'));
          image.dispatchEvent(new Event('error'));
          window.AndroidBridge?.readerDiagnostic?.('IMAGE_STREAM_TIMEOUT');
        },30000);
@@ -289,7 +291,7 @@ function renderImageFolder(data){
      image.loading='eager';image.decoding='async';image.dataset.src=page.url;
      image.addEventListener('load',()=>{
        clearWatchdog();
-       section.style.minHeight='';
+       image.dataset.loaded='yes';section.style.minHeight='';
        updateRotation(image);
        image.style.height='';image.style.visibility='';
      });
@@ -329,13 +331,15 @@ function renderImageFolder(data){
    ensureRendered(target);
    const section=pageSections()[target];
    if(!section){setTimeout(()=>{if(host.isConnected)jumpTo(target);},45);return;}
-   view.scrollTo({top:section.offsetTop-stack.offsetTop,behavior:'auto'});
+   if(imageMode==='pages')view.scrollTo({left:section.offsetLeft,top:0,behavior:'auto'});
+   else view.scrollTo({top:section.offsetTop-stack.offsetTop,left:0,behavior:'auto'});
    setPosition(target);
  }
  function moveImage(delta){
    if(!pages.length)return;
    const target=current+delta;
-   if(target<0||target>=pages.length)return;
+   if(target<0)return;
+   if(target>=pages.length){if(!finished)window.FileGestionerLibrary?.imageReaderDemand?.();return;}
    jumpTo(target);
  }
  function switchMode(){
@@ -347,6 +351,9 @@ function renderImageFolder(data){
    requestAnimationFrame(()=>jumpTo(current));
  }
  function updateCurrent(){
+   if(imageMode==='pages'){
+     setPosition(Math.round(view.scrollLeft/Math.max(1,view.clientWidth)));return;
+   }
    const rect=view.getBoundingClientRect();
    const x=Math.max(1,Math.min(window.innerWidth-2,rect.left+rect.width/2));
    const y=Math.max(1,Math.min(window.innerHeight-2,rect.top+rect.height*.4));
@@ -366,6 +373,26 @@ function renderImageFolder(data){
    }
    setPosition(best);
  }
+ // Horizontal swipes and deliberate side taps change pages, not vertical scroll.
+ let swipeStart=null,swipeConsumedUntil=0;
+ view.addEventListener('pointerdown',e=>{
+   if(imageMode==='pages'&&e.isPrimary)swipeStart={x:e.clientX,y:e.clientY};
+ },{passive:true});
+ view.addEventListener('pointerup',e=>{
+   if(imageMode!=='pages'||!swipeStart)return;
+   const dx=e.clientX-swipeStart.x,dy=e.clientY-swipeStart.y;swipeStart=null;
+   if(Math.abs(dx)>=45&&Math.abs(dx)>Math.abs(dy)*1.2){
+     swipeConsumedUntil=Date.now()+400;moveImage(dx<0?1:-1);
+   }
+ },{passive:true});
+ view.addEventListener('pointercancel',()=>{swipeStart=null;},{passive:true});
+ view.addEventListener('click',e=>{
+   if(imageMode!=='pages'||Date.now()<swipeConsumedUntil||
+      e.target.closest('button,input,a'))return;
+   const r=view.getBoundingClientRect();
+   const x=(e.clientX-r.left)/Math.max(1,r.width);
+   if(x<=.28)moveImage(-1);else if(x>=.72)moveImage(1);
+ });
  let frame=0;
  view.addEventListener('scroll',()=>{
    if(frame)return;
@@ -389,7 +416,7 @@ function renderImageFolder(data){
              img.dataset.queuedWatchdog='';
              if(img.isConnected && img.dataset.recycled!=='yes' &&
                 !(img.complete&&img.naturalWidth>0))
-               {img.removeAttribute('src');img.dispatchEvent(new Event('error'));}
+               {if(img.dataset.loaded!=='yes')img.dispatchEvent(new Event('error'));}
            },30000);
          }
        }else if(img.getAttribute('src') && img.complete && img.naturalWidth>0){
