@@ -4,7 +4,7 @@ source=main.read_text()
 old='    private String imageStreamToken;'
 assert source.count(old)==1
 source=source.replace(old,old+'''
-    // Transient Round Sync ACTION_VIEW grants last only for the current open
+    // Transient ACTION_VIEW grants last only for the current open
     // session; do not claim they are permanently reusable on a later launch.
     private Uri sessionRecentUri;
     private String sessionRecentName;
@@ -65,7 +65,7 @@ source=source.replace(old,r'''        @JavascriptInterface public void openRecen
                 }else{
                     getSharedPreferences("recent",MODE_PRIVATE).edit().clear().apply();
                     js("window.showError("+q(
-                        "The original file provider's access expired. Open this file again through Round Sync or the Files picker.")+")");
+                        "The original file provider's access expired. Open this file again through the Android Files picker.")+")");
                 }
             });
         }''')

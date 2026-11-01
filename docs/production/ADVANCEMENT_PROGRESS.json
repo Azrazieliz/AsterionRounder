@@ -1,0 +1,497 @@
+{
+  "schema_version": "1.0.0",
+  "project": "Asterion Rounder",
+  "repository": "Azrazieliz/AsterionRounder",
+  "active_branch": "fix/asterion-terabox-provider-20261031",
+  "pull_request": 14,
+  "baseline_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+  "created_on": "2026-11-01",
+  "engineering_states": [
+    "NOT_IMPLEMENTED",
+    "SOURCE_PRESENT",
+    "PARTIALLY_INTEGRATED",
+    "INTEGRATED_UNTESTED",
+    "TECHNICALLY_BLOCKED",
+    "TESTED_FUNCTIONAL",
+    "AWAITING_USER_TEST"
+  ],
+  "owner_verdict_policy": "Only explicit owner approval or rejection following relevant test; never infer from CI. Broad owner satisfaction may be recorded only as a broad verdict, never as individually certified acceptance.",
+  "overall_owner_feedback": {
+    "verdict": "BROAD_NON_3D_SATISFACTION",
+    "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+    "date": "2026-11-01"
+  },
+  "delivery": {
+    "last_installed_version": "0.15.14",
+    "version_code": 36,
+    "release_url": "https://github.com/Azrazieliz/AsterionRounder/releases/tag/file-gestioner-release-486",
+    "release_workflow_run_id": 41348400580,
+    "release_steps": "signed APK built and published successfully",
+    "overall_ci": "FAILED",
+    "ci_root_cause": "GitHub-hosted Android emulator boot timed out; TCP port 5554 connection refused; this was after release sign/publish.",
+    "device_test": "ADB confirmed v0.15.14 installed; user reports non-3D working"
+  },
+  "tasks": [
+    {
+      "id": "AR-001",
+      "requirement_ref": "AR-UX-001",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Approved Asterion branding and classic no-Home library",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/premium-library.js",
+          "openlocaloffice-build/hotfixes/apply-rounder-classic-library-20261101.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml",
+        "openlocaloffice-build/hotfixes/test-rounder-end-to-end-contract.cjs"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Owner 2026-11-01 stated current non-3D app works; code commit 2e5b673 and device v0.15.14 installed. Broad satisfaction, not individual screen-by-screen formal acceptance."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/premium-library.js",
+      "remaining": "No current owner-reported defect.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Preserve design during future changes."
+    },
+    {
+      "id": "AR-002",
+      "requirement_ref": "AR-LIB-002",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Two-column larger video previews; unobstructed thumbnails",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py",
+          "openlocaloffice-build/additions/premium-library.js"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-aspect-archive-20261101.cjs"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Source tests passed, signed v0.15.14 installed, owner subsequent general report confirms app working."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py",
+      "remaining": "Individual visual widths across all device sizes not exhaustively measured.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Keep regression gate; test when UI is modified."
+    },
+    {
+      "id": "AR-003",
+      "requirement_ref": "AR-VID-003",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Native-aspect video playback, zoom, controls, orientation",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/FgMediaPlayer.java",
+          "openlocaloffice-build/hotfixes/apply-rounder-video-premium-20261101.py",
+          "openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-premium-video-20261101.cjs"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Signed v0.15.14 physically installed; source gate asserts FIT and optional zoom. User general report of non-3D working after test."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/FgMediaPlayer.java",
+      "remaining": "Do not assume all codecs/orientations verified.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Retain native FIT instead of zoom crop."
+    },
+    {
+      "id": "AR-004",
+      "requirement_ref": "AR-IMG-004",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Pages/V-scroll/H-scroll reading and persistent images",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/reader-controls.js",
+          "openlocaloffice-build/hotfixes/apply-rounder-ui-readers-20261101.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-end-to-end-contract.cjs"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Explicit reader-mode corrections and current device user general success report; source checks passed."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/reader-controls.js",
+      "remaining": "Specific 209-page edge cases not independently retested after last release.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Preserve stable page navigation; only test against real files when regression occurs."
+    },
+    {
+      "id": "AR-005",
+      "requirement_ref": "AR-BOOK-005",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "ZIP/EPUB native archive images, progressive loading and fallback",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/BookArchive.java",
+          "openlocaloffice-build/additions/SeekableZip.java",
+          "openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-aspect-archive-20261101.cjs",
+        "openlocaloffice-build/hotfixes/android-runtime-smoke.sh"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Earlier specific ZIP/EPUB failures reported; logs showed ARCHIVE_ORIGINAL_STREAM_TIMEOUT and ARCHIVE_IMAGE_FAILED; v0.15.14 removed forced abort, corrected encoded fallback, signed install + owner general non-3D success."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/BookArchive.java",
+      "remaining": "No per-format exhaustive performance benchmark; some encrypted/unsupported archive formats can still fail.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "If reproduced, capture original file format and native diagnostic (do not generate substitute media)."
+    },
+    {
+      "id": "AR-006",
+      "requirement_ref": "AR-CLOUD-006",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "TeraBox direct provider / SAF / progressive connector",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/FgTeraboxClient.java",
+          "openlocaloffice-build/additions/FgTeraboxDocumentsProvider.java",
+          "openlocaloffice-build/hotfixes/apply-rounder-cloud-backpressure-20261031.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "Native TeraBox provider source and real-owner connector speed improved across test history; owner now reports app works apart from 3D."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/FgTeraboxClient.java",
+      "remaining": "Very large cloud-index speed not formally benchmarked.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Preserve no-duplicate transfer and continue incremental profiling only if regression observed."
+    },
+    {
+      "id": "AR-007",
+      "requirement_ref": "AR-DOC-007",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Office document and spreadsheet editing",
+      "engineering_state": "SOURCE_PRESENT",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/UniversalReader.java",
+          "openlocaloffice-build/hotfixes/apply-spreadsheet-mobile-20261031.py",
+          "openlocaloffice-build/hotfixes/apply-docx-flow-editor.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml",
+        "openlocaloffice-build/hotfixes/test-rich-docx-reader.sh"
+      ],
+      "verification": {
+        "level": "SOURCE_OR_CI_EVIDENCE_ONLY",
+        "evidence": "Workflow assembles source and numerous document/spreadsheet tests; no recent file-specific on-device acceptance for all editing formats."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/UniversalReader.java",
+      "remaining": "No comprehensive per-format runtime test recorded in current branch.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Preserve current code; validate exact format if subsequently changed."
+    },
+    {
+      "id": "AR-008",
+      "requirement_ref": "AR-3D-008",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Recognize valid Koikatsu cards, show 3D and Blender content via approved path",
+      "engineering_state": "AWAITING_USER_TEST",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/KoikatsuCards.java",
+          "openlocaloffice-build/pc-remote/fg_remote_server.py",
+          "openlocaloffice-build/pc-remote/fg_studio_background_window.py",
+          "openlocaloffice-build/hotfixes/apply-rounder-native-pc-transport-20261101.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-end-to-end-contract.cjs",
+        "scripts/production/resume_project.py"
+      ],
+      "verification": {
+        "level": "SOURCE_OR_CI_EVIDENCE_ONLY",
+        "evidence": "3D bridge source, native Android status/frame proxy committed; owner 2026-11-01 explicitly said 3D remains and will investigate Koikatsu Android app then return results. No accepted real 3D rendering evidence."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/KoikatsuCards.java",
+      "remaining": "Validate native Koikatsu/Blender actual render, status, round-trip responsiveness on owner's setup; Koikatsu Android viability unknown.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [
+        "Valid owner's Koikatsu/Blender runtime or Android port results",
+        "PC bridge may require pairing and authenticated session"
+      ],
+      "dependencies": [
+        "Valid owner's Koikatsu/Blender runtime or Android port results",
+        "PC bridge may require pairing and authenticated session"
+      ],
+      "next_action": "Await owner Koikatsu Android test, then trace actual 3D workflow and implement based on evidence."
+    },
+    {
+      "id": "AR-009",
+      "requirement_ref": "AR-REL-009",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Signed Android release and no-data-loss update",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": {
+        "verdict": "BROAD_NON_3D_SATISFACTION",
+        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
+        "date": "2026-11-01"
+      },
+      "implementation": {
+        "paths": [
+          ".github/workflows/openlocaloffice-build.yml",
+          "openlocaloffice-build/hotfixes/normalize-release-icons.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml",
+        "scripts/production/resume_project.py"
+      ],
+      "verification": {
+        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
+        "evidence": "GitHub CI run #486 built, signed and published signed APK (release-486); ADB confirmed versionCode 36, versionName 0.15.14 installed with preserved certificate and app running; no app data reset."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in .github/workflows/openlocaloffice-build.yml",
+      "remaining": "Emulator smoke stage failed separately; subsequent production-only release status must not conflate with full CI pass.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Verify unchanged cert and package before future install."
+    },
+    {
+      "id": "AR-010",
+      "requirement_ref": "AR-SEC-010",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Safe handling of private files, signer, credentials and original source",
+      "engineering_state": "SOURCE_PRESENT",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          ".github/workflows/openlocaloffice-build.yml",
+          "openlocaloffice-build/hotfixes/apply-rounder-preview-only-policy-20261031.py"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "scripts/production/resume_project.py"
+      ],
+      "verification": {
+        "level": "SOURCE_OR_CI_EVIDENCE_ONLY",
+        "evidence": "Release signing pulls existing secrets from GitHub Actions without committing keystore; source includes owned-file actions and non-destructive readers."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in .github/workflows/openlocaloffice-build.yml",
+      "remaining": "Threat model / source integrity not completely audited.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "No destructive actions; keep private paths and secrets outside Git."
+    },
+    {
+      "id": "AR-011",
+      "requirement_ref": "AR-REL-009",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Android emulator runtime CI smoke test",
+      "engineering_state": "TECHNICALLY_BLOCKED",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          ".github/workflows/openlocaloffice-build.yml",
+          "openlocaloffice-build/hotfixes/android-runtime-smoke.sh"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/android-runtime-smoke.sh"
+      ],
+      "verification": {
+        "level": "EXPLICIT_CI_FAILURE",
+        "evidence": "GitHub Actions run #486: release build/sign/publish succeeded but overall job failed on emulator boot; TCP 5554 connection refused, emulator boot timeout; smoke script never ran."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in .github/workflows/openlocaloffice-build.yml",
+      "remaining": "Restore reliable CI emulator boot on supported runners; do not mark this as failed app functionality.",
+      "root_cause": "GitHub-hosted Android emulator could not connect to TCP 5554 before runtime smoke script",
+      "missing_assets_or_integrations": [
+        "GitHub hosted x86_64 AVD boot environment"
+      ],
+      "dependencies": [
+        "GitHub hosted x86_64 AVD boot environment"
+      ],
+      "next_action": "Diagnose emulator virtualization and startup logs; use non-destructive real-device verification for development meanwhile."
+    },
+    {
+      "id": "AR-012",
+      "requirement_ref": "AR-REL-009",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Persistent project hierarchy / reuse-first continuity",
+      "engineering_state": "TESTED_FUNCTIONAL",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          "docs/production/PROJECT_7STAR_AUTHORITY.md",
+          "docs/production/ADVANCEMENT_PROGRESS.json",
+          "docs/production/AUTOMATION_5STAR.md",
+          "scripts/production/resume_project.py"
+        ],
+        "head_evidence_commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        "scripts/production/resume_project.py"
+      ],
+      "verification": {
+        "level": "SOURCE_OR_CI_EVIDENCE_ONLY",
+        "evidence": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes.",
+        "history": [
+          {
+            "date": "2026-11-01T21:31:22.541988+00:00",
+            "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+            "engineering_state": "TESTED_FUNCTIONAL",
+            "evidence": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes.",
+            "previous_engineering_state": "SOURCE_PRESENT"
+          }
+        ]
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in docs/production/PROJECT_7STAR_AUTHORITY.md",
+      "remaining": "CI emulator boot on hosted runner still fails; Koikatsu/Blender 3D remains unverified pending owner Android port results.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [],
+      "dependencies": [],
+      "next_action": "Reuse the authority/progress/automation sequence for each subsequent implementation; record exact commit and run relevant regression; keep 3D pending owner test and CI emulator failure separately tracked."
+    },
+    {
+      "id": "AR-013",
+      "requirement_ref": "AR-CLOUD-006",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "AsterionCore image persistence across another app's indexing",
+      "engineering_state": "TECHNICALLY_BLOCKED",
+      "owner_verdict": null,
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/FgTeraboxDocumentsProvider.java"
+        ],
+        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml"
+      ],
+      "verification": {
+        "level": "EXPLICIT_CI_FAILURE",
+        "evidence": "Prior user observed AsterionCore thumbnails not retained; separate AsterionCore implementation owns its cache and database. Asterion Rounder connector is not proof of storage within AsterionCore."
+      },
+      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/additions/FgTeraboxDocumentsProvider.java",
+      "remaining": "Potentially remains AsterionCore-owned; latest Rounder general satisfaction does not confirm external app persistence.",
+      "root_cause": "No confirmed root cause unless specified in evidence",
+      "missing_assets_or_integrations": [
+        "AsterionCore app-specific persistent storage implementation"
+      ],
+      "dependencies": [
+        "AsterionCore app-specific persistent storage implementation"
+      ],
+      "next_action": "Keep cross-project boundary; coordinate with AsterionCore source owner only if issue recurs."
+    }
+  ],
+  "change_log": [
+    {
+      "date": "2026-11-01",
+      "type": "INITIAL_ADOPTION",
+      "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+      "description": "Initial non-destructive 7★ / 6★ / 5★ repository hierarchy, registry and resumable verification tool; exact SHA to be filled after organizational commit.",
+      "verification": "Read-only resume --check and --catalog passed; 13 task records and 91 automation programs; ADB reports versionCode 36, versionName 0.15.14; no app data changed."
+    },
+    {
+      "date": "2026-11-01T21:31:22.541988+00:00",
+      "type": "ENGINEERING_PROGRESS",
+      "task_id": "AR-012",
+      "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
+      "description": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes."
+    }
+  ],
+  "open_gaps": [
+    "Complete legacy requirements are distributed across Git history, tracked patch sets, owner screenshots and PR #14; no prior comprehensive 7★ master was tracked.",
+    "GitHub CI emulator boot failure: runtime smoke never executed on run #486.",
+    "Native Koikatsu Android integration not automatically assumed; owner will return with test results."
+  ]
+}
