@@ -55,6 +55,10 @@ public final class FgMediaPlayer implements AutoCloseable {
     private volatile File transientMediaFile;
     private final boolean teraboxDirect;
     private final Runnable onExit;
+    // Persistent player mode survives switching to the next video.
+    // 0 = Play Next, 1 = Replay, 2 = Shuffle without immediate repetition.
+    private static volatile int playbackMode=0;
+    private boolean endHandled=false;
 
     public FgMediaPlayer(Activity activity,Uri original,String filename,
                          boolean video,Runnable onExit,MediaNavigator mediaNavigator){
@@ -152,54 +156,55 @@ public final class FgMediaPlayer implements AutoCloseable {
                     gestureRow.setLayoutParams(params);
                 }
             });
-            // Compact controls share Media3's playback overlay, not a separate
-            // full-width top bar. These are wired to the folder playlist.
-            final int buttonSize=(int)(48*activity.getResources().getDisplayMetrics().density);
-            final int separation=(int)(94*activity.getResources().getDisplayMetrics().density);
-            final android.widget.ImageButton prev=new android.widget.ImageButton(activity);
-            final android.widget.ImageButton next=new android.widget.ImageButton(activity);
-            prev.setImageResource(android.R.drawable.ic_media_previous);
-            next.setImageResource(android.R.drawable.ic_media_next);
+            // One unambiguous folder-navigation group, away from Media3's
+            // center play/pause and bottom seek-bar controls.
+            final LinearLayout controls=new LinearLayout(activity);
+            controls.setOrientation(LinearLayout.HORIZONTAL);
+            controls.setGravity(Gravity.CENTER_VERTICAL);
+            final Button prev=new Button(activity);
+            final Button next=new Button(activity);
+            prev.setText("◀ Prev");
+            next.setText("Next ▶");
             prev.setContentDescription("Previous video in this folder");
             next.setContentDescription("Next video in this folder");
-            for(android.widget.ImageButton control:new android.widget.ImageButton[]{prev,next}){
-                control.setColorFilter(android.graphics.Color.WHITE);
-                android.graphics.drawable.GradientDrawable background=
-                    new android.graphics.drawable.GradientDrawable();
-                background.setColor(0xbb111723);
-                background.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-                control.setBackground(background);
-                FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
-                    buttonSize,buttonSize,Gravity.CENTER);
-                root.addView(control,params);
-            }
-            prev.setTranslationX(-separation);
-            next.setTranslationX(separation);
             prev.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(-1,false);});
             next.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(1,false);});
-            final TextView random=new TextView(activity);
-            random.setText("⤨");
-            random.setTextColor(android.graphics.Color.WHITE);
-            random.setTextSize(25);
-            random.setGravity(Gravity.CENTER);
-            random.setContentDescription("Random video in this folder");
-            android.graphics.drawable.GradientDrawable randomBackground=
-                new android.graphics.drawable.GradientDrawable();
-            randomBackground.setColor(0xbb111723);
-            randomBackground.setCornerRadius(buttonSize/2f);
-            random.setBackground(randomBackground);
-            random.setOnClickListener(v->{if(mediaNavigator!=null)mediaNavigator.navigate(0,true);});
-            FrameLayout.LayoutParams randomParams=new FrameLayout.LayoutParams(
-                buttonSize,buttonSize,Gravity.RIGHT|Gravity.BOTTOM);
-            randomParams.rightMargin=(int)(20*activity.getResources().getDisplayMetrics().density);
-            randomParams.bottomMargin=(int)(76*activity.getResources().getDisplayMetrics().density);
-            root.addView(random,randomParams);
+            controls.addView(prev,new LinearLayout.LayoutParams(0,-2,1f));
+            controls.addView(next,new LinearLayout.LayoutParams(0,-2,1f));
+            final LinearLayout modes=new LinearLayout(activity);
+            modes.setGravity(Gravity.CENTER);
+            final String[] modeNames={"Play next","Replay","Shuffle"};
+            final Button[] modeButtons=new Button[3];
+            for(int i=0;i<3;i++){
+                final int selectedMode=i;
+                Button button=new Button(activity);
+                button.setAllCaps(false);
+                button.setText(modeNames[i]);
+                button.setTextSize(11);
+                button.setMinHeight(0);
+                button.setContentDescription("Playback mode: "+modeNames[i]);
+                modes.addView(button,new LinearLayout.LayoutParams(0,-2,1f));
+                modeButtons[i]=button;
+                button.setOnClickListener(v->{
+                    playbackMode=selectedMode;
+                    refreshPlaybackMode(modeButtons);
+                });
+            }
+            refreshPlaybackMode(modeButtons);
+            final LinearLayout panel=new LinearLayout(activity);
+            panel.setOrientation(LinearLayout.VERTICAL);
+            panel.setPadding(8,0,8,0);
+            panel.setBackgroundColor(0xbb0c1424);
+            panel.addView(controls,new LinearLayout.LayoutParams(-1,-2));
+            panel.addView(modes,new LinearLayout.LayoutParams(-1,-2));
+            final int bottom=(int)(84*activity.getResources().getDisplayMetrics().density);
+            FrameLayout.LayoutParams panelParams=new FrameLayout.LayoutParams(
+                -1,-2,Gravity.BOTTOM);
+            panelParams.bottomMargin=bottom;
+            root.addView(panel,panelParams);
             display.setControllerVisibilityListener(
                 (PlayerView.ControllerVisibilityListener) visibility->{
-                    int show=visibility==View.VISIBLE?View.VISIBLE:View.GONE;
-                    prev.setVisibility(show);
-                    next.setVisibility(show);
-                    random.setVisibility(show);
+                    panel.setVisibility(visibility==View.VISIBLE?View.VISIBLE:View.GONE);
                 });
             enterVideoFullscreen();
         }
@@ -214,12 +219,21 @@ public final class FgMediaPlayer implements AutoCloseable {
             @Override public void onPlaybackStateChanged(int state){
                 if(closed)return;
                 if(state==Player.STATE_READY){
-                    showMessage("");
+                    endHandled=false;showMessage("");
                     Log.i("FG_MEDIA","MEDIA_READY "+filename+
                         " duration_ms="+player.getDuration());
                 }else if(state==Player.STATE_BUFFERING)
                     showMessage("Buffering video…");
-                else if(state==Player.STATE_ENDED)showMessage("Playback finished");
+                else if(state==Player.STATE_ENDED){
+                    if(endHandled)return;
+                    endHandled=true;
+                    if(playbackMode==1){
+                        player.seekTo(0);player.play();
+                        showMessage("");
+                    }else if(mediaNavigator!=null){
+                        mediaNavigator.navigate(playbackMode==2?0:1,playbackMode==2);
+                    }else showMessage("Playback finished");
+                }
             }
             @Override public void onRenderedFirstFrame(){
                 Log.i("FG_MEDIA","VIDEO_FIRST_FRAME "+filename);
@@ -253,6 +267,17 @@ public final class FgMediaPlayer implements AutoCloseable {
         }catch(Exception error){
             Log.e("FG_MEDIA","TERABOX_RANGE_PREPARE_FAILED",error);
             showMessage("Unable to start cloud video: "+error.getMessage());
+        }
+    }
+    private static void refreshPlaybackMode(Button[] buttons){
+        for(int i=0;i<buttons.length;i++){
+            boolean selected=i==playbackMode;
+            buttons[i].setTextColor(android.graphics.Color.WHITE);
+            buttons[i].setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(
+                    selected?0xff456ae8:0xff273449));
+            buttons[i].setAlpha(selected?1f:0.78f);
+            buttons[i].setSelected(selected);
         }
     }
     public View getView(){return root;}
