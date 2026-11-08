@@ -8,7 +8,7 @@ function showOrganizer(){
  if(!bridge()?.getTeraboxConfigured?.()){showTeraboxSettings();return;}
  if(managerPanel)return;
  managerData=null;managerDupeData=null;managerMessage='';
- managerSelected.clear();managerView='moves';managerRunning=false;
+ managerSelected.clear();resetDuplicateSelection();managerView='moves';managerRunning=false;
  managerPanel=E('div','fg-org-backdrop');
  const shell=E('section','fg-org-sheet');
  shell.setAttribute('role','dialog');shell.setAttribute('aria-modal','true');
@@ -25,7 +25,7 @@ function managerSourceSaved(){
 function managerReview(data){
  managerData=data;renderOrganizer();
 }
-function managerDuplicates(data){managerDupeData=data;renderOrganizer();}
+function managerDuplicates(data){managerDupeData=data;initializeDuplicateSelection(data);renderOrganizer();}
 function managerScan(data){
  managerMessage='Incoming scan: '+(data?.folders||0)+' folders checked, '+
   (data?.indexed||0)+' metadata entries processed.'+
@@ -84,12 +84,17 @@ function renderOrganizer(){
      body.append(E('p','fg-org-muted','Reading indexed file rules…'));
    }else{
      const count=managerData.proposals?.length||0;
-     body.append(E('p','fg-org-stat',count+' proposed moves'+
-       (managerData.hasMore?' · More available after these are reviewed':'')));
+     if(count)body.append(E('p','fg-org-stat',count+' files ready to sort'+
+       (managerData.hasMore?' · more available after review':'')));
+     else{
+       const empty=E('div','fg-org-empty-state');
+       empty.append(E('strong','','No files waiting to be sorted'),
+         E('p','','Files already in their folders stay there. Check for new downloads, or optionally add an export folder from another Asterion app.'));
+       body.append(empty);
+     }
      const apps=E('details','fg-org-source-settings');
      apps.append(E('summary','fg-org-source-header',
-       'Connected Asterion sources · '+(managerData.sources||[]).filter(x=>x.configured).length+
-       ' of '+(managerData.sources||[]).length+' configured'));
+       'Optional app export folders'));
      const sourceList=E('div','fg-org-source-list');
      sourceList.append(E('p','fg-org-muted',
        'Select real incoming/export folders. A file extension alone cannot identify its originating app. Historical folders can be mapped to Asterion Downloader; they are not separate apps.'));
@@ -118,7 +123,7 @@ function renderOrganizer(){
      }
      apps.append(sourceList);body.append(apps);
      body.append(E('p','fg-org-muted',
-       'Asterion Downloader is one app. Other apps are recognized only when their actual export folders are configured. Uncertain file types are left unchanged.'));
+       'Rounder never moves uncertain files. App source configuration is optional.'));
      const rows=E('div','fg-org-filelist');
      for(const item of managerData.proposals||[]){
        const row=E('label','fg-org-row');
@@ -137,6 +142,7 @@ function renderOrganizer(){
        row.append(input,detail);rows.append(row);
      }
      body.append(rows);
+     if(count){
      const controls=E('div','fg-org-controls');
      controls.append(b('Select first 30','fg-org-small',()=>{
        managerSelected.clear();
@@ -158,6 +164,7 @@ function renderOrganizer(){
      if(managerRunning)controls.append(b('Stop after current file','fg-org-small',
        ()=>bridge()?.organizerStop?.()));
      body.append(controls);
+     }
    }
    const scan=b('Check incoming downloads','fg-org-scan',()=>{
      managerMessage='Checking incoming source folders…';renderOrganizer();
@@ -177,27 +184,9 @@ function renderOrganizer(){
    row.append(toggle,E('span','','Automatically organize trusted incoming files (opt-in)'));
    body.append(row);
  }else{
-   if(!managerDupeData)body.append(E('p','fg-org-muted','Checking indexed duplicate groups…'));
-   else {
-     for(const [key,title] of [['exact','Matching cloud hashes'],['possible','Possible duplicates']]){
-       const groups=managerDupeData[key]||[];
-       body.append(E('h3','fg-org-group-title',title+' · '+groups.length+' groups'));
-       if(!groups.length)body.append(E('p','fg-org-muted',
-         key==='exact'?'No MD5-and-size groups found in indexed metadata.':
-         'No same-name/same-size candidates found.'));
-       for(const group of groups){
-         const details=E('details','fg-org-dupe');
-         details.append(E('summary','',group.count+' files · '+
-           group.size+' bytes · '+group.basis));
-         const list=E('div','fg-org-paths');
-         for(const path of group.paths||[])list.append(E('p','',path));
-         details.append(list);body.append(details);
-       }
-     }
-     body.append(E('p','fg-org-muted',
-       'Provider MD5 matches are strong metadata evidence. Same-name candidates require verification; no files are deleted.'));
-   }
+   renderDuplicateWorkspace(body);
  }
+
  if(managerMessage)body.prepend(E('p','fg-org-status',managerMessage));
  shell.append(body);
 }
