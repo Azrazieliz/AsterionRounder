@@ -12,7 +12,7 @@ for(const v of [
  'scope TEXT NOT NULL','cloud.listPageCached(task.path,task.page)',
  'FgTeraboxClient.mapEntry(raw)','while((task=next(db,scope,generation))!=null)',
  'UPDATE pending SET page=?','DELETE FROM pending WHERE scope=?',
- 'SELECT path,name,kind,folder,size,modified,parent FROM objects',
+ 'SELECT path,name,kind,folder,size,modified,parent,listing_page FROM objects',
  'AND needle LIKE ?','LIMIT ? OFFSET ?','"searchPath"','Uri.encode(path)',
  'cloud.metadataScope()','String.valueOf(e.getMessage())',
  'return value.replace(','public void clear()'
