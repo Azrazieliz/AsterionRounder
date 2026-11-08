@@ -114,7 +114,7 @@ j=once(j,"function render(){\n if(localIndexedMode()){renderIndexedResults();ret
 j=once(j,"       if(localIndexedMode()){indexedResults=[];scheduleIndexSearch(0,0);}",
         "       if(indexedMode()){indexedResults=[];scheduleIndexSearch(0,0);}",
         "filtered cloud search")
-j=once(j,"  if(cloudMode)bridge()?.listTerabox?.(currentFolder||'');",
+j=once(j," if(cloudMode)bridge()?.listTerabox?.(currentFolder||'');",
 """  if(cloudMode){
     bridge()?.startTeraboxIndex?.();
     bridge()?.listTerabox?.(currentFolder||'');
