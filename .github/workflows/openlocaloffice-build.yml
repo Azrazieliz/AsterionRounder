@@ -388,6 +388,18 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-continuous-updater-20261108.cjs
 
+      - name: Stamp monotonic Android update identity
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        env:
+          FG_RELEASE_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          python3 ../hotfixes/stamp-rounder-build-20261108.py "$FG_RELEASE_RUN_NUMBER"
+          grep -Fq 'versionCode = ' app/build.gradle.kts
+          test -s app/src/main/assets/rounder-build.json
+          grep -Fq '"releaseRun":' app/src/main/assets/rounder-build.json
+
       - name: Export assembled source for implementation audit
         uses: actions/upload-artifact@v4
         with:
