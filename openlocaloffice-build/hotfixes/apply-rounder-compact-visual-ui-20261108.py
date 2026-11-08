@@ -37,12 +37,9 @@ once(" const useList=list;",
 once(" const rowHeight=useList?124:Math.ceil(cellWidth*1.5+86);",
 " const rowHeight=useList?78:Math.ceil(cellWidth*1.25+79);",
 "accurate continuous file list geometry")
-once("mode==='search'?'Matching collections':'Collections'",
-"mode==='search'?'Matching folders':'Folders'",
-"folder section heading")
-once("mode==='search'?'Matching collections':'Collections';",
-"mode==='search'?'Matching folders':'Folders';",
-"folder title refresh")
+old_label="mode==='search'?'Matching collections':'Collections'"
+assert s.count(old_label)==2,"Expected two folder labels"
+s=s.replace(old_label,"mode==='search'?'Matching folders':'Folders'")
 once("meta.append(E('strong','',item.name),E('small','','Folder · TeraBox'));",
 "meta.append(E('strong','',item.name),E('small','','Folder'));",
 "no generic open collection label")
