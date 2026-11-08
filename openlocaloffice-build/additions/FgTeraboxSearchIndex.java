@@ -36,20 +36,27 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
     private volatile long lastProgressMs=0;
 
     public FgTeraboxSearchIndex(Context context,FgTeraboxClient cloud,Listener listener) {
-        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,1);
+        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,2);
         this.cloud=cloud;
         this.listener=listener;
         setWriteAheadLoggingEnabled(true);
     }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE accounts (scope TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 0, building INTEGER NOT NULL DEFAULT 0, indexed INTEGER NOT NULL DEFAULT 0, error TEXT)");
-        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, PRIMARY KEY(scope,generation,path))");
+        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, checksum TEXT, listing_page INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,generation,path))");
         db.execSQL("CREATE INDEX objects_lookup ON objects(scope,generation,needle)");
         db.execSQL("CREATE INDEX objects_type ON objects(scope,generation,kind)");
+        db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
+        db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
         db.execSQL("CREATE TABLE pending (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, page INTEGER NOT NULL, PRIMARY KEY(scope,generation,path))");
     }
     @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion){
-        throw new IllegalStateException("Cloud index migration not defined");
+        if(oldVersion<2){
+            db.execSQL("ALTER TABLE objects ADD COLUMN checksum TEXT");
+            db.execSQL("ALTER TABLE objects ADD COLUMN listing_page INTEGER NOT NULL DEFAULT 1");
+            db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
+            db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
+        }
     }
     private static final class State {
         int active,building;
@@ -155,7 +162,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         db.beginTransactionNonExclusive();
         try{
             SQLiteStatement put=db.compileStatement(
-                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent) VALUES(?,?,?,?,?,?,?,?,?,?)");
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
             SQLiteStatement queue=db.compileStatement(
                 "INSERT OR IGNORE INTO pending(scope,generation,path,page) VALUES(?,?,?,1)");
             int admitted=0;
@@ -186,6 +193,11 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     put.bindLong(8,row.optLong("size",-1));
                     put.bindLong(9,row.optLong("modified",0));
                     put.bindString(10,parent);
+                    // Use only syntactically valid provider-supplied whole-file MD5.
+                    String digest=raw.optString("md5","").toLowerCase(Locale.ROOT);
+                    if(digest.matches("[0-9a-f]{32}"))put.bindString(11,digest);
+                    else put.bindNull(11);
+                    put.bindLong(12,task.page);
                     put.executeInsert();
                     admitted++;
                     if(folder){
@@ -238,7 +250,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                 boolean more=false;
                 if(!scope.isEmpty()&&gen>0&&text!=null&&!text.trim().isEmpty()){
                     ArrayList<String> params=new ArrayList<>();
-                    String sql="SELECT path,name,kind,folder,size,modified,parent FROM objects WHERE scope=? AND generation=? AND needle LIKE ? ESCAPE '\\'";
+                    String sql="SELECT path,name,kind,folder,size,modified,parent,listing_page FROM objects WHERE scope=? AND generation=? AND needle LIKE ? ESCAPE '\\'";
                     params.add(scope);params.add(Integer.toString(gen));
                     params.add("%"+escapeLike(text.trim().toLowerCase(Locale.ROOT))+"%");
                     if(category!=null&&!category.isEmpty()&&!category.equals("all")){
@@ -261,6 +273,10 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                                 .put("searchPath",cursor.getString(6))
                                 .put("terabox",true).put("indexedSearch",true)
                                 .put("uri","fgterabox://file/"+Uri.encode(path));
+                            if("image".equals(cursor.getString(2))){
+                                item.put("cover",coverUrl(path,cursor.getInt(7)))
+                                    .put("remoteCover",true);
+                            }
                             results.put(item);
                         }
                     }
@@ -286,6 +302,53 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                 .put("indexed",s.indexed).put("building",s.building!=0)
                 .put("error",s.error).toString());
         }catch(Exception ignored){}
+    }
+
+    /** Constructs only an existing authenticated native thumbnail proxy URL. */
+    private static String coverUrl(String path,int page){
+        String encoded=android.util.Base64.encodeToString(
+            path.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+            android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
+            android.util.Base64.NO_PADDING);
+        return "https://fg-assets.invalid/tb-cover/"+encoded+"."+Math.max(1,page);
+    }
+    public JSONObject folderPreviews(JSONArray folders)throws Exception {
+        JSONObject result=new JSONObject();
+        if(folders==null||folders.length()>24)return result;
+        String scope=connectedScope();
+        State state=state(getReadableDatabase(),scope);
+        int gen=state.active>0?state.active:state.building;
+        if(gen==0)return result;
+        for(int i=0;i<folders.length();i++){
+            String folder=folders.optString(i,"");
+            if(!folder.startsWith("/")||folder.contains("%")||folder.contains("_"))continue;
+            JSONArray covers=new JSONArray();
+            try(Cursor rows=getReadableDatabase().rawQuery(
+                "SELECT path,listing_page FROM objects WHERE scope=? AND generation=? AND folder=0 AND kind='image' AND path LIKE ? ORDER BY modified DESC LIMIT 3",
+                new String[]{scope,Integer.toString(gen),
+                    folder.endsWith("/")?folder+"%":folder+"/%"})){
+                while(rows.moveToNext())covers.put(coverUrl(rows.getString(0),rows.getInt(1)));
+            }
+            result.put(folder,covers);
+        }
+        return result;
+    }
+    /** Metadata snapshot, never opens file contents. */
+    public SQLiteDatabase metadata(){return getReadableDatabase();}
+    public String currentScope(){return connectedScope();}
+    public int currentGeneration(){
+        String scope=connectedScope();
+        if(scope.isEmpty())return 0;
+        State state=state(getReadableDatabase(),scope);
+        return state.active>0?state.active:state.building;
+    }
+    public void noteMoved(String expectedScope,String oldPath,String newPath){
+        if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
+        SQLiteDatabase db=getWritableDatabase();
+        String parent=newPath.substring(0,newPath.lastIndexOf('/'));
+        if(parent.isEmpty())parent="/";
+        db.execSQL("UPDATE objects SET path=?,parent=? WHERE scope=? AND path=?",
+            new Object[]{newPath,parent,expectedScope,oldPath});
     }
     public void clear(){
         try{
