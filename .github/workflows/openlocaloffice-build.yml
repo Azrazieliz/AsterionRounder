@@ -388,6 +388,16 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-continuous-updater-20261108.cjs
 
+      - name: Restore the earlier approved Rounder library design
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../hotfixes/restore-rounder-classic-ui-20261108.py
+          python3 -m py_compile ../hotfixes/restore-rounder-classic-ui-20261108.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-classic-restore-20261108.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
