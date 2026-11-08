@@ -26,6 +26,6 @@ assert.match(archive,/rootMargin:'65% 0px'/,'ZIP image prefetch begins before vi
 assert.match(lib,/search\.placeholder='Search your books'/,'Library presentation restored');
 assert.match(lib,/welcome\.hidden=true;dashboard\.hidden=true/,'Home stays removed');
 assert.match(style,/repeat\(3,minmax\(0,1fr\)\)!important/,'Preserve restored original library sizing');
-assert.match(gradle,/versionCode\s*=\s*38/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.16"/);
+assert.match(gradle,/versionCode\s*=\s*39/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.17"/);
 console.log('ROUNDERVER_PREMIUM_VIDEO_CONTRACT_PASS');
