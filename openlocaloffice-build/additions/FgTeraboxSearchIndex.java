@@ -305,7 +305,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
     }
 
     /** Constructs only an existing authenticated native thumbnail proxy URL. */
-    private static String coverUrl(String path,int page){
+    public static String coverUrl(String path,int page){
         String encoded=android.util.Base64.encodeToString(
             path.getBytes(java.nio.charset.StandardCharsets.UTF_8),
             android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
@@ -321,12 +321,13 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         if(gen==0)return result;
         for(int i=0;i<folders.length();i++){
             String folder=folders.optString(i,"");
-            if(!folder.startsWith("/")||folder.contains("%")||folder.contains("_"))continue;
+            if(!folder.startsWith("/")||folder.length()>512)continue;
             JSONArray covers=new JSONArray();
             try(Cursor rows=getReadableDatabase().rawQuery(
-                "SELECT path,listing_page FROM objects WHERE scope=? AND generation=? AND folder=0 AND kind='image' AND path LIKE ? ORDER BY modified DESC LIMIT 3",
+                "SELECT path,listing_page FROM objects WHERE scope=? AND generation=? AND folder=0 AND kind='image' AND path LIKE ? ESCAPE '\\' ORDER BY modified DESC LIMIT 3",
                 new String[]{scope,Integer.toString(gen),
-                    folder.endsWith("/")?folder+"%":folder+"/%"})){
+                    (folder.endsWith("/")?folder:folder+"/").replace("\\","\\\\")
+                        .replace("%","\\%").replace("_","\\_")+"%"})){
                 while(rows.moveToNext())covers.put(coverUrl(rows.getString(0),rows.getInt(1)));
             }
             result.put(folder,covers);
@@ -387,6 +388,13 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         if(scope.isEmpty())return 0;
         State state=state(getReadableDatabase(),scope);
         return state.active>0?state.active:state.building;
+    }
+    /** Invalidate an indexed path only after remote deletion is confirmed. */
+    public void noteDeleted(String expectedScope,String oldPath){
+        if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
+        getWritableDatabase().execSQL(
+            "DELETE FROM objects WHERE scope=? AND path=?",
+            new Object[]{expectedScope,oldPath});
     }
     public void noteMoved(String expectedScope,String oldPath,String newPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
