@@ -244,4 +244,11 @@ segment=one(segment,
                 }""","refresh expired signed cover URL once")
 s=s[:start]+segment+s[end:]
 client.write_text(s,encoding="utf-8")
+gradle=Path("app/build.gradle.kts")
+version=gradle.read_text(encoding="utf-8")
+version,n=re.subn(r'(\\bversionCode\\s*=\\s*)45\\b',r'\\g<1>46',version,count=1)
+if n!=1:raise AssertionError("Expected v0.15.23 source code 45")
+version,n=re.subn(r'(\\bversionName\\s*=\\s*)"0\\.15\\.23"',r'\\g<1>"0.15.24"',version,count=1)
+if n!=1:raise AssertionError("Expected v0.15.23 version name")
+gradle.write_text(version,encoding="utf-8")
 print("ROUNDER_UNIFIED_IDENTITY_PREVIEW_CONTROLS: launcher-shared mark, preserved cards, failed previews and buffering feedback handled")
