@@ -139,8 +139,8 @@ premiumIntro.append(premiumEyebrow,premiumTitle,premiumSummary);
 """
 j=replace_once(j,"const footer=E('div','fg-lib-footer',",
   premium_intro+"const footer=E('div','fg-lib-footer',","premium hero declare")
-j=replace_once(j,"body.append(welcome,dashboard,toolbar,filters,loading,deck,empty,footer);",
-'''body.append(welcome,dashboard,premiumIntro,toolbar,filters,loading,deck,empty,footer);''',"premium home placement")
+j=replace_once(j,"body.append(toolbar,filters,loading,deck,empty,footer);",
+'''body.append(premiumIntro,toolbar,filters,loading,deck,empty,footer);''',"premium home placement")
 j=replace_once(j,"const entryIds=new Set();",
 '''const entryIds=new Set();
 const folderPreviewCache=new Map();
