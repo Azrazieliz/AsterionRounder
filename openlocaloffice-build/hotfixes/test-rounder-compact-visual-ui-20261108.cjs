@@ -58,6 +58,10 @@ assert(!/autoRun\([\s\S]*?deleteDuplicateChecked/.test(
  org.slice(org.indexOf('public JSONObject autoRun('),
            org.indexOf('public JSONObject review()'))),
  'Automatic organizer must never delete duplicates');
+assert(css.includes('.fg-library-root .fg-vault-folder > .fg-vault-folder-art{'),
+ 'Folder thumbnail styling must target child element only');
+assert(!css.includes('.fg-library-root .fg-vault-folder-art{'),
+ 'Folder Art category must not shrink the entire folder button');
 assert(!ui.includes('1 / 502'),'Numeric pagination returned');
 assert(!ui.includes("if(detail)detail.textContent='Open collection';"),
  'Useless Open collection labels still present');
