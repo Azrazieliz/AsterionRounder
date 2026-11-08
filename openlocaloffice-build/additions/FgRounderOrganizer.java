@@ -193,28 +193,49 @@ public final class FgRounderOrganizer {
         return route==null?"Source not established":route.reason;
     }
     /** Hash-based groups are strong metadata evidence, not a freshly recomputed SHA-256. */
+
+    /** Visual, hash-supported duplicate groups. Never returns original pixels. */
     public JSONObject duplicates()throws Exception{
         JSONObject output=new JSONObject();
         JSONArray exact=new JSONArray(),possible=new JSONArray();
         String scope=index.currentScope();int gen=index.currentGeneration();
         if(gen==0)return output.put("exact",exact).put("possible",possible)
-            .put("indexReady",false);
+            .put("indexReady",false).put("potentialBytes",0);
         SQLiteDatabase db=index.metadata();
+        long potential=0;
         String query="SELECT checksum,size,COUNT(*) FROM objects WHERE scope=? AND generation=?"+
           " AND folder=0 AND checksum IS NOT NULL AND size>=0"+
           " GROUP BY checksum,size HAVING COUNT(*)>1 ORDER BY COUNT(*) DESC LIMIT 40";
         try(Cursor groups=db.rawQuery(query,new String[]{scope,String.valueOf(gen)})){
             while(groups.moveToNext()){
-                JSONArray paths=new JSONArray();
-                String hash=groups.getString(0),size=String.valueOf(groups.getLong(1));
-                try(Cursor files=db.rawQuery(
-                    "SELECT path FROM objects WHERE scope=? AND generation=? AND checksum=? AND size=? ORDER BY path LIMIT 24",
-                    new String[]{scope,String.valueOf(gen),hash,size})){
-                    while(files.moveToNext())paths.put(files.getString(0));
+                String hash=groups.getString(0);
+                long size=groups.getLong(1);
+                int count=groups.getInt(2);
+                JSONArray paths=new JSONArray(),files=new JSONArray();
+                try(Cursor rows=db.rawQuery(
+                    "SELECT path,name,kind,listing_page,modified FROM objects"+
+                    " WHERE scope=? AND generation=? AND checksum=? AND size=?"+
+                    " ORDER BY path LIMIT 24",
+                    new String[]{scope,String.valueOf(gen),hash,String.valueOf(size)})){
+                    while(rows.moveToNext()){
+                        String path=rows.getString(0);
+                        paths.put(path);
+                        JSONObject item=new JSONObject().put("path",path)
+                            .put("name",rows.getString(1))
+                            .put("kind",rows.getString(2))
+                            .put("size",size).put("modified",rows.getLong(4));
+                        if("image".equals(rows.getString(2)))
+                            item.put("cover",FgTeraboxSearchIndex.coverUrl(
+                                path,rows.getInt(3)));
+                        files.put(item);
+                    }
                 }
-                exact.put(new JSONObject().put("basis","matching cloud MD5 and size")
-                    .put("size",groups.getLong(1)).put("count",groups.getInt(2))
-                    .put("paths",paths));
+                exact.put(new JSONObject().put("id",hash+":"+size)
+                    .put("hash",hash).put("size",size).put("count",count)
+                    .put("paths",paths).put("files",files)
+                    .put("basis","TeraBox MD5 + file size")
+                    .put("reviewOnly",count>files.length()));
+                potential+=(long)(count-1)*size;
             }
         }
         String q2="SELECT needle,size,COUNT(*) FROM objects WHERE scope=? AND generation=?"+
@@ -222,21 +243,125 @@ public final class FgRounderOrganizer {
           " GROUP BY needle,size HAVING COUNT(*)>1 ORDER BY COUNT(*) DESC LIMIT 40";
         try(Cursor groups=db.rawQuery(q2,new String[]{scope,String.valueOf(gen)})){
             while(groups.moveToNext()){
-                JSONArray paths=new JSONArray();
-                String name=groups.getString(0),size=String.valueOf(groups.getLong(1));
-                try(Cursor files=db.rawQuery(
-                    "SELECT path FROM objects WHERE scope=? AND generation=? AND needle=? AND size=? AND checksum IS NULL ORDER BY path LIMIT 24",
-                    new String[]{scope,String.valueOf(gen),name,size})){
-                    while(files.moveToNext())paths.put(files.getString(0));
+                JSONArray paths=new JSONArray(),files=new JSONArray();
+                String name=groups.getString(0);
+                long size=groups.getLong(1);
+                try(Cursor rows=db.rawQuery(
+                    "SELECT path,name,kind,listing_page,modified FROM objects"+
+                    " WHERE scope=? AND generation=? AND needle=? AND size=? AND checksum IS NULL"+
+                    " ORDER BY path LIMIT 24",
+                    new String[]{scope,String.valueOf(gen),name,String.valueOf(size)})){
+                    while(rows.moveToNext()){
+                        String path=rows.getString(0);
+                        paths.put(path);
+                        JSONObject item=new JSONObject().put("path",path)
+                            .put("name",rows.getString(1))
+                            .put("kind",rows.getString(2))
+                            .put("size",size).put("modified",rows.getLong(4));
+                        if("image".equals(rows.getString(2)))
+                            item.put("cover",FgTeraboxSearchIndex.coverUrl(
+                                path,rows.getInt(3)));
+                        files.put(item);
+                    }
                 }
-                possible.put(new JSONObject().put("basis","same filename and size (unverified)")
-                    .put("size",groups.getLong(1)).put("count",groups.getInt(2))
-                    .put("paths",paths));
+                possible.put(new JSONObject().put("size",size)
+                    .put("count",groups.getInt(2))
+                    .put("basis","Same filename and size; contents not verified")
+                    .put("files",files).put("paths",paths).put("reviewOnly",true));
             }
         }
-        output.put("exact",exact).put("possible",possible)
-              .put("indexReady",true);
-        return output;
+        return output.put("exact",exact).put("possible",possible)
+            .put("potentialBytes",potential).put("indexReady",true)
+            .put("scope",scope).put("limitedGroups",true);
+    }
+
+    /** Revalidate a specific indexed file before any selected deletion. */
+    private JSONObject duplicateIndexInfo(String scope,int gen,String path)throws Exception{
+        try(Cursor rows=index.metadata().rawQuery(
+            "SELECT checksum,size FROM objects WHERE scope=? AND generation=? AND path=? AND folder=0 LIMIT 1",
+            new String[]{scope,String.valueOf(gen),path})){
+            if(!rows.moveToFirst())throw new java.io.IOException("File not in current duplicate index");
+            return new JSONObject().put("hash",rows.isNull(0)?"":rows.getString(0))
+                .put("size",rows.getLong(1));
+        }
+    }
+    private void requireRemoteMatch(String path,String hash,long size)throws Exception{
+        JSONObject details=cloud.fileDetails(path);
+        if(size!=details.optLong("size",-1)||
+           !hash.equalsIgnoreCase(details.optString("md5","")))
+            throw new java.io.IOException("File content changed, or cloud hash unavailable");
+    }
+    /** Confirmed human selection only; never called by the auto organizer. */
+    public void cleanupDuplicates(JSONObject request,Reporter callback)throws Exception{
+        JSONArray batches=request==null?null:request.optJSONArray("groups");
+        if(batches==null||batches.length()<1||batches.length()>30)
+            throw new IllegalArgumentException("Select 1–30 duplicate groups");
+        synchronized(EXECUTION_LOCK){
+            stop=false;
+            String scope=index.currentScope();
+            int gen=index.currentGeneration();
+            if(scope.isEmpty()||gen==0)throw new java.io.IOException("Build cloud index first");
+            int removed=0,failed=0,total=0;
+            Set<String> targets=new HashSet<>();
+            for(int g=0;g<batches.length();g++){
+                JSONObject group=batches.optJSONObject(g);
+                JSONArray deletion=group==null?null:group.optJSONArray("remove");
+                if(deletion==null)continue;
+                total+=deletion.length();
+                if(total>30)throw new IllegalArgumentException("Maximum 30 files per cleanup");
+                for(int i=0;i<deletion.length();i++){
+                    String path=deletion.optString(i,"");
+                    if(!targets.add(path))throw new IllegalArgumentException("Repeated duplicate path");
+                }
+            }
+            if(total==0)throw new IllegalArgumentException("No duplicates selected");
+            int attempted=0;
+            for(int g=0;g<batches.length()&&!stop;g++){
+                JSONObject group=batches.optJSONObject(g);
+                if(group==null)continue;
+                String keep=group.optString("keep","");
+                JSONArray deletion=group.optJSONArray("remove");
+                if(deletion==null||deletion.length()==0)continue;
+                JSONObject preserved=duplicateIndexInfo(scope,gen,keep);
+                String hash=preserved.optString("hash","");
+                long size=preserved.optLong("size",-1);
+                if(hash.length()!=32||size<0||targets.contains(keep))
+                    throw new java.io.IOException("Invalid surviving file selection");
+                // Confirm a surviving copy exists before any destructive call.
+                requireRemoteMatch(keep,hash,size);
+                for(int i=0;i<deletion.length()&&!stop;i++){
+                    String path=deletion.optString(i,"");
+                    JSONObject event=new JSONObject().put("operation","duplicates")
+                        .put("source",path).put("total",total)
+                        .put("completed",attempted);
+                    try{
+                        if(!scope.equals(index.currentScope()))
+                            throw new java.io.IOException("TeraBox account changed");
+                        if(path.equals(keep)||!path.startsWith("/"))
+                            throw new java.io.IOException("Cannot remove retained file");
+                        JSONObject candidate=duplicateIndexInfo(scope,gen,path);
+                        if(!hash.equals(candidate.optString("hash",""))||
+                           size!=candidate.optLong("size",-1))
+                            throw new java.io.IOException("Not a confirmed matching copy");
+                        requireRemoteMatch(keep,hash,size);
+                        // Client confirms remote content immediately before deletion.
+                        cloud.deleteDuplicateChecked(path,hash,size);
+                        index.noteDeleted(scope,path);
+                        removed++;
+                        event.put("status","deleted").put("bytes",size);
+                    }catch(Exception error){
+                        failed++;
+                        event.put("status","review")
+                            .put("error",String.valueOf(error.getMessage()));
+                    }
+                    attempted++;
+                    callback.send(event.toString());
+                }
+            }
+            callback.send(new JSONObject().put("operation","duplicates")
+                .put("finished",true).put("deleted",removed).put("review",failed)
+                .put("stopped",stop).put("total",total).toString());
+        }
     }
     private JSONObject indexedFile(String scope,int gen,String path)throws Exception {
         try(Cursor c=index.metadata().rawQuery(
