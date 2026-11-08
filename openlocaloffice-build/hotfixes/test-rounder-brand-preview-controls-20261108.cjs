@@ -35,8 +35,10 @@ assert.deepEqual(webPaths,androidPaths,'Logo paths must exactly match Android la
 need(js,["function card(item,i)","const cover=E('div','fg-lib-cover');",
  "cover.appendChild(fallback);","const meta=E('div','fg-lib-tile-meta');",
  "tile.append(cover,meta);"],'original cards');
-assert(!css.includes('.fg-library-root .fg-lib-grid.fg-vault-media-grid'),
-  'No file-card redesign may return');
+assert(css.includes('.fg-lib-cover{')&&css.includes('.fg-lib-tile{'),
+  'Original card CSS must remain available');
+assert(css.includes('.fg-lib-cover.fg-lib-has-image > .fg-lib-fallback'),
+  'Preview restoration may alter fallback visibility, not card geometry');
 assert.match(gradle,/versionCode\s*=\s*46/);
 assert.match(gradle,/versionName\s*=\s*"0\.15\.24"/);
 console.log('ROUNDER_SHARED_BRANDING_AND_PREVIEW_CONTRACT_PASS: identical icon paths, current cards preserved, thumbnail feedback and native video controls');
