@@ -209,7 +209,7 @@ public final class FgRounderUpdater {
         File target=FgRounderUpdateProvider.stagedFile(activity);
         File dir=target.getParentFile();
         if(!dir.isDirectory()&&!dir.mkdirs())throw new java.io.IOException("Cannot create update cache");
-        File temp=new File(dir,"download.partial");
+        File temp=new File(dir,"download.partial.apk");
         if(temp.exists()&&!temp.delete())throw new java.io.IOException("Cannot reset partial update");
         MessageDigest digest=MessageDigest.getInstance("SHA-256");
         long total=0;
