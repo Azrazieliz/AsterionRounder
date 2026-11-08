@@ -53,19 +53,9 @@ s=once(s,"        @JavascriptInterface public void disconnectTerabox(){\n       
 """        @JavascriptInterface public void disconnectTerabox(){
              fgTbVersion.incrementAndGet();""",
     "disconnect API anchor") if False else s
-s=once(s,
-'''        @JavascriptInterface public void disconnectTerabox(){
-             fgTbVersion.incrementAndGet();
-             tb().disconnect();
-             fgTbToken=java.util.UUID.randomUUID().toString();
-         }''',
-'''        @JavascriptInterface public void disconnectTerabox(){
-             fgTbVersion.incrementAndGet();
-             tb().disconnect();
-             fgCloudIndex().clear();
-             fgTbToken=java.util.UUID.randomUUID().toString();
-         }''',
-    "clear stale account metadata on disconnect")
+s=once(s,"            tb().disconnect();",
+        "            tb().disconnect();\n            fgCloudIndex().clear();",
+        "clear stale account metadata on disconnect")
 java.write_text(s,encoding="utf-8")
 lib=base/"assets/premium-library.js"
 j=lib.read_text(encoding="utf-8")
