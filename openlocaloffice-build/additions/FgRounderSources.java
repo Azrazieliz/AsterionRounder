@@ -70,7 +70,7 @@ public final class FgRounderSources {
                path.contains("/../")||path.endsWith("/..")||
                path.contains("/./")||path.endsWith("/.")||
                path.contains("?")||path.contains("%")||path.contains("[")||
-               path.contains("*")||path.contains("_")&&false)
+               path.contains("*"))
                throw new IllegalArgumentException("Invalid TeraBox source folder");
             String lower=path.toLowerCase(Locale.ROOT);
             for(String tooBroad:new String[]{"/art","/books","/apps","/videos",
