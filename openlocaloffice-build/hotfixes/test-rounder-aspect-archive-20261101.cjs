@@ -25,6 +25,6 @@ assert.match(archive,/book-fallback/);
 assert.match(main,/active\.responseSampled\(u\.getEncodedPath\(\)\)/);
 assert.match(read('assets/epub-reader.js'),/Never erase previously rendered illustrations/);
 const gradle=fs.readFileSync('app/build.gradle.kts','utf8');
-assert.match(gradle,/versionCode\s*=\s*37/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.15"/);
+assert.match(gradle,/versionCode\s*=\s*38/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.16"/);
 console.log('ROUNDERVER_V01514_NATIVE_ASPECT_LIBRARY_AND_ARCHIVE_PASS');
