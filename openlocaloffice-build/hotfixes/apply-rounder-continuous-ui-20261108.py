@@ -117,7 +117,7 @@ function showVirtualItems(items,mode,key){
  virtualFiles=files;
  const useList=list||!files.some(e=>e.cover)||filter==='document'||filter==='file';
  deck.className='fg-lib-grid'+(useList?' fg-lib-list':' fg-vault-media-grid');
- const computedCols=(window.getComputedStyle(deck).gridTemplateColumns.match(/[\\d.]+px/g)||[]).length;
+ const computedCols=(window.getComputedStyle(deck).gridTemplateColumns.match(/[0-9.]+px/g)||[]).length;
  const columns=useList?1:Math.max(1,computedCols||2);
  const rowHeight=useList?78:276;
  virtualCols=columns;virtualRowHeight=rowHeight;
