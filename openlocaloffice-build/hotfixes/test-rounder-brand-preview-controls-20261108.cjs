@@ -11,6 +11,7 @@ const gradle=fs.readFileSync('app/build.gradle.kts','utf8');
 const need=(text,values,name)=>values.forEach(x=>assert(text.includes(x),name+': '+x));
 need(js,['sharedBrand.src=','asterion-rounder-mark.svg',
  'monogram.append(sharedBrand)','iconDraw=(name)=>','back.append(iconDraw',
+ 'setSortTitle(labels[sortBy],sortDescending)',
  "layout.append(iconDraw('grid'))",'function card(item,i)',
  'function showOrganizer()','function managerCleanupProgress(event)',
  'function renderIndexedResults()','function updaterStatus(data)'],'library');
