@@ -117,8 +117,9 @@ function showVirtualItems(items,mode,key){
  virtualFiles=files;
  const useList=list||!files.some(e=>e.cover)||filter==='document'||filter==='file';
  deck.className='fg-lib-grid'+(useList?' fg-lib-list':' fg-vault-media-grid');
- const columns=useList?1:Math.max(1,Math.floor((deck.clientWidth+12)/170));
- const rowHeight=useList?80:276;
+ const computedCols=(window.getComputedStyle(deck).gridTemplateColumns.match(/[\\d.]+px/g)||[]).length;
+ const columns=useList?1:Math.max(1,computedCols||2);
+ const rowHeight=useList?78:276;
  virtualCols=columns;virtualRowHeight=rowHeight;
  const totalRows=Math.ceil(files.length/columns);
  const origin=virtualTop.getBoundingClientRect().top-
@@ -154,7 +155,7 @@ function showVirtualItems(items,mode,key){
  virtualLastStart=start;virtualLastEnd=end;virtualLastSig=signature;
 }
 function handleContinuousScroll(){
- if(!visible||!virtualFiles.length)return;
+ if(!visible||(!virtualFiles.length&&!indexedMode()))return;
  if(virtualScrollTimer)return;
  virtualScrollTimer=requestAnimationFrame(()=>{
    virtualScrollTimer=0;
@@ -245,7 +246,7 @@ pos=s.find(start)
 end=s.find("  const elapsed=Date.now()-lastRender;",pos)
 if pos<0 or end<0:raise AssertionError("streaming pager branch missing")
 s=s[:pos]+'''  if(!payload.finished&&filter==='all'&&!phrase.trim()&&
-     entries.length>PAGE&&lastVisibleKeys){
+     entries.length>PAGE&&virtualLastEnd>0){
     count.textContent=entries.length.toLocaleString()+' items · syncing…';
     if(body.scrollTop+body.clientHeight+800>=body.scrollHeight &&
        Date.now()-lastRender>=1100){
