@@ -36,6 +36,7 @@ public final class FgSearchIndex extends SQLiteOpenHelper {
     private final Set<String> scheduled=ConcurrentHashMap.newKeySet();
     private final Set<String> complete=ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<String,Long> retryAfter=new ConcurrentHashMap<>();
+    private volatile long lastProgressMs=0;
 
     public FgSearchIndex(Context app,Listener listener){
         super(app.getApplicationContext(),"rounder-search-v1.db",null,1);
@@ -229,6 +230,9 @@ public final class FgSearchIndex extends SQLiteOpenHelper {
                 new Object[]{batch.size(),root});
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
+        // In a 300k-file single directory, surface progressive matches while
+        // metadata is streaming; throttle UI callbacks rather than per-row spam.
+        progress(root);
     }
     private static String kind(String name){
         String n=name.toLowerCase(Locale.ROOT);
@@ -316,6 +320,9 @@ public final class FgSearchIndex extends SQLiteOpenHelper {
         }catch(Exception error){return false;}
     }
     private void progress(String root){
+        long now=android.os.SystemClock.elapsedRealtime();
+        if(now-lastProgressMs<1300L&&!complete.contains(root))return;
+        lastProgressMs=now;
         try{
             State s=state(getReadableDatabase(),root);
             listener.onProgress(new JSONObject().put("root",root)
