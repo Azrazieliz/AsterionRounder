@@ -387,9 +387,9 @@ css.write_text(css.read_text(encoding="utf-8")+"\n"+theme,encoding="utf-8")
 
 gradle=Path("app/build.gradle.kts")
 g=gradle.read_text(encoding="utf-8")
-g,n=re.subn(r'(\bversionCode\s*=\s*)40\b',r'\g<1>41',g,count=1)
+g,n=re.subn(r'(\bversionCode\s*=\s*)40\b',r'\g<1>42',g,count=1)
 assert n==1,"Expected versionCode 40"
-g,n=re.subn(r'(\bversionName\s*=\s*)"0\.15\.18"',r'\g<1>"0.15.19"',g,count=1)
+g,n=re.subn(r'(\bversionName\s*=\s*)"0\.15\.18"',r'\g<1>"0.15.20"',g,count=1)
 assert n==1,"Expected versionName 0.15.18"
 gradle.write_text(g,encoding="utf-8")
-print("ROUND ER 0.15.19: no numeric pages, bounded virtual scroll, compact folders, in-app updater")
+print("ROUND ER 0.15.20: no numeric pages, bounded virtual scroll, compact folders, in-app updater")
