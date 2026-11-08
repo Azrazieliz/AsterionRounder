@@ -14,8 +14,8 @@ const manifest=fs.readFileSync('app/src/main/AndroidManifest.xml','utf8');
 const gradle=fs.readFileSync('app/build.gradle.kts','utf8');
 function has(src,items){for(const item of items)assert(src.includes(item),'Missing contract: '+item);}
 has(engine,['public JSONObject duplicates()','GROUP BY checksum,size',
- 'GROUP BY needle,size','matching cloud MD5 and size',
- 'same filename and size (unverified)','public JSONObject review()',
+ 'GROUP BY needle,size','TeraBox MD5 + file size',
+ 'Same filename and size; contents not verified','public JSONObject review()',
  'public JSONObject scanIncoming(boolean quick)','public JSONObject autoRun(',
  'public void apply(JSONArray paths','setAutoEnabled(boolean enabled)',
  'if(automatic) prefs.edit().putBoolean(','APPLY_LIMIT',
@@ -35,8 +35,12 @@ assert(!source.includes('"/Nocturne/Kuroha"') &&
        !source.includes('"/Nocturne/Kyora"') &&
        !source.includes('"/Nocturne/VideoFlow"'),
        'Legacy subproducts must not be active source folders');
-assert(!/cloud\.delete|\.deleteFile\(|removeCloudFile\(/.test(engine),
- 'Organizer must have no destructive delete path');
+const autoSource=engine.slice(engine.indexOf('public JSONObject autoRun('),
+ engine.indexOf('public JSONObject review()'));
+assert(!autoSource.includes('deleteDuplicateChecked'),
+ 'Scheduled organizer must not trigger duplicate deletion');
+assert(engine.includes('public void cleanupDuplicates(JSONObject request,Reporter callback)'),
+ 'Explicit manual review is required before duplicate deletion');
 has(client,['private JSONObject postCloud(','postCloud("/api/create",',
  'postCloud("/api/filemanager",','form.put("ondup","fail")',
  'readBack=fileDetails(target)','expectedSize>=0&&remoteSize!=expectedSize',
