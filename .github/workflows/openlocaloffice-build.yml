@@ -12,7 +12,7 @@ on:
 
 # Only the newest commit on a PR consumes the Android emulator.
 concurrency:
-  group: rounder-visual-duplicate-v22-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: rounder-preserve-existing-cards-v23-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
