@@ -80,7 +80,7 @@ java.write_text(s,encoding="utf-8")
 lib=base/"assets/premium-library.js"
 js=lib.read_text(encoding="utf-8")
 js=one(js,"search.type='search';search.placeholder='Search your books';",
-       "search.type='search';search.placeholder='Search all folders';",
+       "search.type='search';search.placeholder='Search your books';",
        "search placeholder")
 
 js=one(js,"let cloudMode=false;",
