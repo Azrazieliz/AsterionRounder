@@ -27,7 +27,7 @@ need(cloud,['boolean refreshedSignedUrl=false','!refreshedSignedUrl',
  'thumbUrls.put(safe,fresh)'],'TeraBox thumbnail recovery');
 // Source-of-truth vector paths are reused in the WebView asset; do not redraw.
 const androidPaths=[...android.matchAll(/android:pathData="([^"]+)"/g)].map(m=>m[1]);
-const webPaths=[...logo.matchAll(/<path\s+[^>]*d="([^"]+)"/g)].map(m=>m[1]);
+const webPaths=[...logo.matchAll(/<path\s+d="([^"]+)"/g)].map(m=>m[1]);
 assert(androidPaths.length>=3);
 assert.deepEqual(webPaths,androidPaths,'Logo paths must exactly match Android launcher foreground');
 // User explicitly prohibited redesigning approved cards.
