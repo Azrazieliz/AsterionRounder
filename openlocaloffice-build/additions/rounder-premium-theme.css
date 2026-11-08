@@ -25,6 +25,7 @@ padding:9px!important;border:1px solid #384961!important;gap:8px!important}
 color:#fff!important;background:#24344d!important;border:1px solid #486180!important}
 .fg-library-root .fg-lib-filters{display:flex!important;overflow-x:auto;
 flex-wrap:nowrap!important;scrollbar-width:none;padding:9px 0!important}
+.fg-library-root .fg-lib-filters.fg-lib-hidden{display:none!important}
 .fg-library-root .fg-lib-filter{background:#202f46!important;border:1px solid #3d516b!important;
 color:#e2e7ef!important;border-radius:12px!important;flex:0 0 auto}
 .fg-library-root .fg-lib-filter.fg-lib-selected{background:linear-gradient(125deg,#d7b184,#b58d64)!important;
