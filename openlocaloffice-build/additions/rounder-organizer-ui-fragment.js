@@ -18,6 +18,10 @@ function showOrganizer(){
  renderOrganizer();
 }
 function managerRefreshReview(){bridge()?.organizerReview?.();bridge()?.organizerDuplicates?.();}
+function managerSourceSaved(){
+ managerMessage='Source folder saved. Future intake scans use the confirmed location.';
+ renderOrganizer();
+}
 function managerReview(data){
  managerData=data;renderOrganizer();
 }
@@ -82,8 +86,39 @@ function renderOrganizer(){
      const count=managerData.proposals?.length||0;
      body.append(E('p','fg-org-stat',count+' proposed moves'+
        (managerData.hasMore?' · More available after these are reviewed':'')));
+     const apps=E('details','fg-org-source-settings');
+     apps.append(E('summary','fg-org-source-header',
+       'Connected Asterion sources · '+(managerData.sources||[]).filter(x=>x.configured).length+
+       ' of '+(managerData.sources||[]).length+' configured'));
+     const sourceList=E('div','fg-org-source-list');
+     sourceList.append(E('p','fg-org-muted',
+       'Select real incoming/export folders. A file extension alone cannot identify its originating app. Historical folders can be mapped to Asterion Downloader; they are not separate apps.'));
+     for(const source of managerData.sources||[]){
+       const record=E('div','fg-org-source-record');
+       const sourceLabel=E('label','fg-org-source-name',source.name);
+       const sourceInput=E('input','fg-org-source-input');
+       sourceInput.type='text';sourceInput.value=source.root||'';
+       sourceInput.placeholder='/Actual/App/Export/Folder';
+       sourceInput.autocomplete='off';
+       sourceInput.setAttribute('aria-label',source.name+' incoming folder');
+       const autoRow=E('label','fg-org-auto');
+       const auto=E('input','');auto.type='checkbox';
+       auto.checked=!!source.auto;
+       autoRow.append(auto,E('span','','Allow scheduled moves for this source'));
+       const save=b('Save source','fg-org-small',()=>{
+         if(auto.checked&&!source.auto&&!window.confirm(
+           'Allow automatically moving files from '+source.name+
+           ' after configuring this source export folder?')){
+           auto.checked=false;return;
+         }
+         bridge()?.organizerConfigureSource?.(source.id,sourceInput.value,auto.checked);
+         managerMessage='Saving source '+source.name+'…';renderOrganizer();
+       });
+       record.append(sourceLabel,sourceInput,autoRow,save);sourceList.append(record);
+     }
+     apps.append(sourceList);body.append(apps);
      body.append(E('p','fg-org-muted',
-       'Routes use known Downloader source folders and file extensions. Unknown types stay unchanged.'));
+       'Asterion Downloader is one app. Other apps are recognized only when their actual export folders are configured. Uncertain file types are left unchanged.'));
      const rows=E('div','fg-org-filelist');
      for(const item of managerData.proposals||[]){
        const row=E('label','fg-org-row');
