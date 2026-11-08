@@ -205,10 +205,14 @@ js=one(js,"(item.folder?'Open collection':'')));",
        "(item.folder?'Open collection':''))));",
        "close metadata ternary")
 
-js=one(js,"more.title='File actions';more.setAttribute('aria-label','Actions for '+item.name);",
-       """more.title='File actions';more.setAttribute('aria-label','Actions for '+item.name);
- more.hidden=!!item.indexedSearch;more.disabled=!!item.indexedSearch;""",
-       "disable out-of-folder destructive actions")
+js=one(js,"""tile.addEventListener('contextmenu',event=>{
+   event.preventDefault();showFileActions(item);
+ });""",
+       """tile.addEventListener('contextmenu',event=>{
+   if(item.indexedSearch)return;
+   event.preventDefault();showFileActions(item);
+ });""",
+       "disable indexed result context actions")
 js=one(js,"if(e.pointerType==='touch' && !e.target.closest('.fg-lib-more')){",
        "if(!item.indexedSearch && e.pointerType==='touch' && !e.target.closest('.fg-lib-more')){",
        "disable indexed long press")
