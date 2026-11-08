@@ -350,6 +350,11 @@ once("panel.append(head,desc,input,info,save,local);",
 
 # New version for a real in-place update.
 lib.write_text(s,encoding="utf-8")
+css=base/"assets/style.css"
+theme=Path("../additions/rounder-continuous-ui.css").read_text(encoding="utf-8")
+assert "fg-vault-updater-backdrop" in theme and "fg-vault-spacer" in theme
+css.write_text(css.read_text(encoding="utf-8")+"\n"+theme,encoding="utf-8")
+
 gradle=Path("app/build.gradle.kts")
 g=gradle.read_text(encoding="utf-8")
 g,n=re.subn(r'(\bversionCode\s*=\s*)40\b',r'\g<1>41',g,count=1)
