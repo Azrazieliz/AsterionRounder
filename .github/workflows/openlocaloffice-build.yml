@@ -160,6 +160,11 @@ jobs:
           python3 -m py_compile ../hotfixes/apply-rounder-fast-search-20261108.py
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-fast-search-20261108.cjs
+          cp ../additions/FgTeraboxSearchIndex.java app/src/main/java/com/openlocal/office/core/FgTeraboxSearchIndex.java
+          python3 ../hotfixes/apply-rounder-terabox-search-20261108.py
+          python3 -m py_compile ../hotfixes/apply-rounder-terabox-search-20261108.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-terabox-search-20261108.cjs
           python3 -m py_compile ../hotfixes/apply-scale-library-20261031.py ../hotfixes/apply-scale-media-20261031.py ../hotfixes/apply-streamed-image-folders-20261031.py ../hotfixes/apply-file-conversion-20261031.py
           grep -Fq 'ReaderLibrary.stream(' app/src/main/java/com/openlocal/office/MainActivity.java
           grep -Fq 'listTeraboxNative(' app/src/main/java/com/openlocal/office/MainActivity.java
