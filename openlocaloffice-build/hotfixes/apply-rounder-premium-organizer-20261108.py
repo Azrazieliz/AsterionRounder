@@ -74,6 +74,16 @@ r'''        @JavascriptInterface public void fetchTeraboxFolderPreviews(String f
                 }catch(Exception e){fgOrganizerFailure("apply",e);}
             });
         }
+        @JavascriptInterface public void organizerCleanupDuplicates(String json){
+            if(json==null||json.length()>24000)return;
+            fgDirectoryExecutor.execute(()->{
+                try{
+                    fgOrganizer().cleanupDuplicates(new org.json.JSONObject(json),event->
+                        runOnUiThread(()->js(
+                            "window.FileGestionerLibrary?.managerCleanupProgress("+event+")")));
+                }catch(Exception e){fgOrganizerFailure("duplicates-cleanup",e);}
+            });
+        }
         @JavascriptInterface public void organizerStop(){
             fgOrganizer().stop();
         }
@@ -228,7 +238,7 @@ j=replace_once(j," if(operationDialog){closeFileActions();return true;}",
 j=replace_once(j,"window.FileGestionerLibrary={",
 '''window.FileGestionerLibrary={
  folderPreviews,managerReview,managerDuplicates,managerProgress,managerScan,
- managerAuto,managerError,managerRefreshReview,managerSourceSaved,''',"manager callback exports")
+ managerAuto,managerError,managerRefreshReview,managerSourceSaved,managerCleanupProgress,''',"manager callback exports")
 # Because manager body declared later as hoisted functions, safe to expose.
 j=replace_once(j," if(bridge()?.getTeraboxConfigured?.())show();",
                  " if(bridge()?.getTeraboxConfigured?.())show();",
