@@ -69,7 +69,9 @@ const iconDraw=(name)=>{
  const commands={
   back:['M15 18 9 12 15 6'],
   grid:['M3 3h7v7H3z','M14 3h7v7h-7z','M3 14h7v7H3z','M14 14h7v7h-7z'],
-  list:['M8 6h13','M8 12h13','M8 18h13','M3 6h.01','M3 12h.01','M3 18h.01']
+  list:['M8 6h13','M8 12h13','M8 18h13','M3 6h.01','M3 12h.01','M3 18h.01'],
+  'sort-up':['M12 19V5','M5 12l7-7 7 7'],
+  'sort-down':['M12 5v14','M5 12l7 7 7-7']
  };
  for(const d of commands[name]||[]){
   const node=document.createElementNS(ns,'path');
@@ -90,6 +92,18 @@ j=one(j,"const layout=b('▦','fg-lib-icon',()=>{list=!list;layout.textContent=l
  list=!list;layout.replaceChildren(iconDraw(list?'list':'grid'));render();
 });
 layout.append(iconDraw('grid'));""","consistent grid/list navigation")
+j=one(j,
+"const sortButton=b('Name ↑','fg-lib-sort',()=>showSortMenu());",
+"""const sortButton=b('','fg-lib-sort',()=>showSortMenu());
+const setSortTitle=(label,descending)=>{
+ sortButton.replaceChildren(E('span','fg-sort-label',label),
+   iconDraw(descending?'sort-down':'sort-up'));
+};
+setSortTitle('Name',false);""","sort label uses matching vector")
+j=one(j,
+"sortButton.textContent=labels[sortBy]+(sortDescending?' ↓':' ↑');",
+"setSortTitle(labels[sortBy],sortDescending);",
+"remove font-dependent sorting arrows")
 lib.write_text(j,encoding="utf-8")
 
 # No card redesign: only solve the image/fallback overlay and mark consistency.
@@ -126,6 +140,8 @@ c+="""
  stroke:currentColor!important;fill:none!important
 }
 .fg-library-root .fg-lib-nav-back svg{color:#e7cba5!important}
+.fg-library-root .fg-lib-sort{display:inline-flex!important;gap:4px!important;align-items:center!important;justify-content:center!important}
+.fg-library-root .fg-lib-sort svg{width:15px;height:15px;stroke:currentColor;fill:none}
 """
 css.write_text(c,encoding="utf-8")
 
