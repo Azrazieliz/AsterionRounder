@@ -333,6 +333,52 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         }
         return result;
     }
+
+    /** Admit changed incoming metadata without a 300k-file full-account rebuild. */
+    public int ingestIncoming(String directory,int page,JSONArray listing)throws Exception{
+        String scope=connectedScope();
+        int gen=currentGeneration();
+        if(scope.isEmpty()||gen==0||listing==null)return 0;
+        if(directory==null||!directory.startsWith("/"))return 0;
+        SQLiteDatabase db=getWritableDatabase();
+        int touched=0;
+        db.beginTransactionNonExclusive();
+        try{
+            SQLiteStatement put=db.compileStatement(
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+            try{
+                for(int i=0;i<listing.length();i++){
+                    JSONObject raw=listing.optJSONObject(i);
+                    if(raw==null)continue;
+                    JSONObject row;
+                    try{row=FgTeraboxClient.mapEntry(raw);}
+                    catch(Exception bad){continue;}
+                    String path=row.optString("path","");
+                    if(!path.startsWith(directory.endsWith("/")?directory:directory+"/"))continue;
+                    String name=row.optString("name","");
+                    if(name.isBlank())continue;
+                    boolean isFolder=row.optBoolean("folder",false);
+                    put.clearBindings();
+                    put.bindString(1,scope);put.bindLong(2,gen);
+                    put.bindString(3,path);put.bindString(4,name);
+                    put.bindString(5,name.toLowerCase(Locale.ROOT));
+                    put.bindString(6,isFolder?"folder":category(name));
+                    put.bindLong(7,isFolder?1:0);
+                    put.bindLong(8,row.optLong("size",-1));
+                    put.bindLong(9,row.optLong("modified",0));
+                    put.bindString(10,directory);
+                    String checksum=raw.optString("md5","").toLowerCase(Locale.ROOT);
+                    if(checksum.matches("[0-9a-f]{32}"))put.bindString(11,checksum);
+                    else put.bindNull(11);
+                    put.bindLong(12,page);
+                    put.executeInsert();
+                    touched++;
+                }
+            }finally{put.close();}
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
+        return touched;
+    }
     /** Metadata snapshot, never opens file contents. */
     public SQLiteDatabase metadata(){return getReadableDatabase();}
     public String currentScope(){return connectedScope();}
