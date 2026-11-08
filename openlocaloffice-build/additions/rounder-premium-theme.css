@@ -98,3 +98,18 @@ padding:13px;margin:8px 0}
 .fg-org-dupe summary{cursor:pointer;font:600 12px system-ui}
 .fg-org-paths p{font:11px/1.5 system-ui;color:#c1cedc;overflow-wrap:anywhere}
 @media(min-width:700px){.fg-org-sheet{margin:4vh auto;border-radius:24px;height:83vh}}
+
+/* Confirmed Asterion app output roots: compact, owner-editable source settings. */
+.fg-org-source-settings{margin:10px 0 14px;background:#192a40;
+ border:1px solid #465a74;border-radius:14px;padding:12px}
+.fg-org-source-header{font:700 13px/1.5 system-ui;color:#e4c29c;cursor:pointer}
+.fg-org-source-list{display:flex;flex-direction:column;gap:10px;margin:12px 0 2px}
+.fg-org-source-record{display:flex;flex-direction:column;gap:8px;
+ padding:12px;border-radius:12px;border:1px solid #405572;background:#23344d}
+.fg-org-source-name{color:#f5f1eb;font:700 13px/1.4 system-ui}
+.fg-org-source-input{box-sizing:border-box;width:100%;min-height:42px;
+ padding:9px 11px;color:#f7f5f0;background:#132238;
+ border:1px solid #667b94;border-radius:10px;font:12px system-ui}
+.fg-org-source-input::placeholder{color:#91a3b7}
+.fg-org-source-record .fg-org-auto{margin:0;padding:2px 0;border:0}
+.fg-org-source-record .fg-org-small{align-self:flex-start}
