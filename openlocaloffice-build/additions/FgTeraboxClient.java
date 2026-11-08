@@ -272,6 +272,69 @@ public final class FgTeraboxClient {
     }
 
 
+    /**
+     * Explicit owner-selected deletion of one cloud file. Request is sent
+     * only after the original and a surviving matching copy were validated
+     * by the organizer. Never called by scheduled sorting.
+     *
+     * TeraBox's filemanager/delete can move the file to its recycle bin;
+     * actual recovery is provider-dependent. Verify absence before counting.
+     */
+    public void deleteDuplicateChecked(String path,String knownMd5,long knownSize)
+            throws Exception {
+        String safe=safePath(path);
+        if(safe.equals("/")||knownSize<0||knownMd5==null||
+           !knownMd5.matches("[0-9a-f]{32}"))
+            throw new IllegalArgumentException("Invalid duplicate deletion request");
+        JSONObject original=fileDetails(safe);
+        String remoteMd5=original.optString("md5","").toLowerCase(Locale.ROOT);
+        if(!knownMd5.equals(remoteMd5)||original.optLong("size",-1)!=knownSize)
+            throw new IOException("Original content has changed; deletion refused");
+        Map<String,String> query=new LinkedHashMap<>();
+        query.put("opera","delete");
+        query.put("onnest","fail");
+        Map<String,String> form=new LinkedHashMap<>();
+        form.put("async","0");
+        form.put("filelist",new JSONArray().put(safe).toString());
+        JSONObject response=postCloud("/api/filemanager",query,form);
+        JSONArray info=response.optJSONArray("info");
+        if(info!=null){
+            for(int i=0;i<info.length();i++){
+                JSONObject row=info.optJSONObject(i);
+                if(row!=null&&row.optInt("errno",0)!=0)
+                    throw new IOException("TeraBox rejected file deletion");
+            }
+        }
+        // Metadata endpoint is authoritative for newly missing paths.
+        // Unknown transport errors are not reported as confirmed deletion.
+        JSONObject reread;
+        try{reread=fileDetails(safe);}
+        catch(IOException absent){
+            // The provider can return a generic metadata failure, so the
+            // result remains unverified until a fresh parent listing confirms.
+            reread=null;
+        }
+        if(reread!=null&&reread.optString("path","").equals(safe))
+            throw new IOException("TeraBox still reports the selected file");
+        String parent=safe.substring(0,safe.lastIndexOf('/'));
+        if(parent.isEmpty())parent="/";
+        boolean stillListed=false;
+        // Fresh listPage bypasses disk metadata cache, and does not fetch media.
+        JSONArray listed=listPage(parent,1);
+        for(int i=0;i<listed.length();i++){
+            JSONObject row=listed.optJSONObject(i);
+            if(row!=null&&safe.equals(row.optString("path",""))){
+                stillListed=true;break;
+            }
+        }
+        if(stillListed)
+            throw new IOException("Deletion unverified: source remains in cloud folder");
+        // For directories larger than one page, a single listing cannot prove
+        // absence; leave the operation in a review-needed state.
+        if(listed.length()>=pageSize())
+            throw new IOException("Deletion submitted; verify cloud recycle bin and refresh index");
+    }
+
     /** Fresh metadata for newest incoming items; bypass the browsing cache. */
     public JSONArray listIncomingPage(String path,int page)throws Exception{
         if(page<1||page>20)throw new IllegalArgumentException("Incoming page out of range");
