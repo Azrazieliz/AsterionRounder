@@ -217,8 +217,8 @@ js=one(js,"function render(){\n if(renderTimer)",
        "function render(){\n if(localIndexedMode()){renderIndexedResults();return;}\n indexedRefresh.hidden=true;\n if(renderTimer)",
        "render search path")
 
-js=one(js,"const control=b(name,'fg-lib-filter'+(filter===key?' fg-lib-selected':''),
-     ()=>{filter=key;pageStart=0;createFilters();render();});",
+js=one(js,"""const control=b(name,'fg-lib-filter'+(filter===key?' fg-lib-selected':''),
+     ()=>{filter=key;pageStart=0;createFilters();render();});""",
        """const control=b(name,'fg-lib-filter'+(filter===key?' fg-lib-selected':''),
      ()=>{filter=key;pageStart=0;createFilters();
        if(localIndexedMode()){indexedResults=[];scheduleIndexSearch(0,0);}
