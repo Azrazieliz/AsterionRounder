@@ -23,7 +23,7 @@ paths=[]
 for path in tree.findall("path"):
     d=path.get(ns+"pathData","")
     if not d:continue
-    attributes=[f'd="{escape(d,{"\"":"&quot;"})}"']
+    attributes=['d="'+escape(d, {'"':'&quot;'})+'"']
     for android,svg in (("fillColor","fill"),("strokeColor","stroke"),
                         ("strokeWidth","stroke-width"),
                         ("strokeLineCap","stroke-linecap")):
