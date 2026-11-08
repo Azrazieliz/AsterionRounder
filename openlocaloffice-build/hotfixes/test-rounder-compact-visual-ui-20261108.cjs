@@ -14,11 +14,11 @@ const required=(source,markers,label)=>markers.forEach(x=>
 required(ui,[
  'openBtn.textContent=',
  'actions.append(openBtn,organizeBtn,updateBtn,settingsBtn)',
- 'virtualFolders=items.filter(e=>e.folder)',
- 'virtualFiles=items.filter(e=>!e.folder)',
- 'drawFolderRail(virtualFolders,mode)',
- "mode==='search'?'Matching folders':'Folders'",
- "const useList=list||!virtualHasCovers",
+ 'virtualFolders=[];',
+ 'virtualFiles=items;',
+ 'drawFolderRail([],mode)',
+ "const useList=list;",
+ 'const rowHeight=useList?124:Math.ceil(cellWidth*1.5+86);',
  'function renderDuplicateWorkspace(body)',
  'function renderDuplicateCleanupFooter(shell)',
  'function managerCleanupProgress(event)',
@@ -30,8 +30,7 @@ required(ui,[
 required(css,[
  '.fg-review-rail','.fg-review-image','.fg-review-keep-btn',
  '.fg-review-remove-btn','.fg-review-bottom',
- '.fg-lib-header','.fg-vault-folder-grid',
- '.fg-lib-grid.fg-vault-media-grid','.fg-lib-grid.fg-lib-list'
+ '.fg-lib-header','.fg-lib-search','.fg-org-sheet'
 ],'CSS');
 required(main,[
  'public void organizerCleanupDuplicates(String json)',
@@ -58,13 +57,20 @@ assert(!/autoRun\([\s\S]*?deleteDuplicateChecked/.test(
  org.slice(org.indexOf('public JSONObject autoRun('),
            org.indexOf('public JSONObject review()'))),
  'Automatic organizer must never delete duplicates');
-assert(css.includes('.fg-library-root .fg-vault-folder > .fg-vault-folder-art{'),
- 'Folder thumbnail styling must target child element only');
-assert(!css.includes('.fg-library-root .fg-vault-folder-art{'),
- 'Folder Art category must not shrink the entire folder button');
+const overlay=fs.readFileSync('../additions/rounder-compact-visual-ui.css','utf8');
+for(const forbidden of [
+ '.fg-lib-grid.fg-vault-media-grid', '.fg-lib-grid.fg-lib-list',
+ '.fg-lib-tile{', '.fg-lib-cover{', '.fg-lib-cover-image{',
+ '.fg-lib-tile-meta{','.fg-lib-item-title{',
+ '.fg-vault-folder-grid', '.fg-vault-folder-art',
+ '.fg-library-root .fg-lib-body{'
+])assert(!overlay.includes(forbidden),
+ 'No existing card or gallery styles may be overridden: '+forbidden);
+assert(ui.includes("if(detail)detail.textContent='Folder';"),
+ 'Folder caption should be clear without card redesign');
 assert(!ui.includes('1 / 502'),'Numeric pagination returned');
 assert(!ui.includes("if(detail)detail.textContent='Open collection';"),
  'Useless Open collection labels still present');
-assert.match(gradle,/versionCode\s*=\s*44/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.22"/);
-console.log('ROUNDER_VISUAL_DUPLICATES_AND_COMPACT_UI_OK');
+assert.match(gradle,/versionCode\s*=\s*45/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.23"/);
+console.log('ROUNDER_EXISTING_CARDS_PRESERVED_VISUAL_DUPLICATES_OK');
