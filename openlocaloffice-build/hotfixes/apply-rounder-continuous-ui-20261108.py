@@ -241,11 +241,11 @@ once("indexedResults=Array.isArray(data.items)?data.items:[];",
 "append indexed search batches")
 
 # Metadata streaming is retained, while numeric-pager manipulation is removed.
-start="  if(!payload.finished && filter==='all' && !phrase.trim() &&"
-pos=s.find(start)
-end=s.find("  const elapsed=Date.now()-lastRender;",pos)
-if pos<0 or end<0:raise AssertionError("streaming pager branch missing")
-s=s[:pos]+'''  if(!payload.finished&&filter==='all'&&!phrase.trim()&&
+pos=s.find("if(!payload.finished",s.find("function append(payload){"))
+end=s.find("const elapsed=Date.now()-lastRender;",pos) if pos>=0 else -1
+if pos>=0:
+    if end<0:raise AssertionError("Legacy streaming metadata handler could not be bounded")
+    s=s[:pos]+'''if(!payload.finished&&filter==='all'&&!phrase.trim()&&
      entries.length>PAGE&&virtualLastEnd>0){
     count.textContent=entries.length.toLocaleString()+' items · syncing…';
     if(body.scrollTop+body.clientHeight+800>=body.scrollHeight &&
@@ -254,7 +254,9 @@ s=s[:pos]+'''  if(!payload.finished&&filter==='all'&&!phrase.trim()&&
     }
     return;
   }
-'''+s[end:]
+  '''+s[end:]
+elif "fg-lib-page-number" in s:
+    raise AssertionError("Unexpected numeric pager outside the replaced render path")
 
 # Keep every file reachable through scrolling, reset position for a newly
 # navigated folder rather than perpetuating the previous directory's scroll.
