@@ -506,25 +506,33 @@ jobs:
         working-directory: openlocaloffice-build/project
         run: gradle --no-daemon --max-workers=2 assembleDebug
 
-      - name: Enable emulator acceleration
+      - name: Prepare emulator system libraries and acceleration
         if: ${{ always() && steps.emulator_build.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0660", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          # The previous CI failure was a missing libpulse.so.0 shared library:
+          # qemu-system-x86_64 exited immediately before Android could boot.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpulse0t64 || sudo apt-get install -y --no-install-recommends libpulse0
+          ldconfig -p | grep -q 'libpulse.so.0'
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 0666 /dev/kvm
+            ls -l /dev/kvm
+          else
+            echo "::warning::No /dev/kvm on this runner; emulator will use slower software acceleration."
+          fi
 
       - name: Android runtime validation — EPUB, archive, navigation
         if: ${{ always() && steps.emulator_build.outcome == 'success' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          api-level: 35
           arch: x86_64
           profile: pixel_6
           emulator-boot-timeout: 1200
           disable-animations: true
-          ram-size: 4096
+          ram-size: 3072
           heap-size: 512
           emulator-options: -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: FG_QA_APK=openlocaloffice-build/project/app/build/outputs/apk/debug/app-debug.apk bash openlocaloffice-build/hotfixes/android-runtime-smoke.sh
