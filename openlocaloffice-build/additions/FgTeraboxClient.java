@@ -271,6 +271,20 @@ public final class FgTeraboxClient {
             throw new IOException("Move response unverified: destination size");
     }
 
+
+    /** Fresh metadata for newest incoming items; bypass the browsing cache. */
+    public JSONArray listIncomingPage(String path,int page)throws Exception{
+        if(page<1||page>20)throw new IllegalArgumentException("Incoming page out of range");
+        Map<String,String> args=new LinkedHashMap<>();
+        args.put("dir",safePath(path));
+        args.put("page",Integer.toString(page));
+        args.put("num",Integer.toString(PAGE));
+        args.put("order","time");args.put("desc","1");args.put("web","1");
+        JSONObject data=api("/api/list",args);
+        JSONArray rows=data.optJSONArray("list");
+        if(rows==null)throw new IOException("TeraBox incoming listing not available");
+        return rows;
+    }
     public JSONArray listPage(String path,int page) throws Exception{
         if(page<1||page>100000)throw new IllegalArgumentException("Page out of range");
         Map<String,String> args=new LinkedHashMap<>();
