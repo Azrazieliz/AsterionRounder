@@ -189,4 +189,5 @@ function renderOrganizer(){
 
  if(managerMessage)body.prepend(E('p','fg-org-status',managerMessage));
  shell.append(body);
+ if(managerView==='dupes'&&managerDupeData)renderDuplicateCleanupFooter(shell);
 }
