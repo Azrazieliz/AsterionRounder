@@ -176,6 +176,115 @@ public final class FgTeraboxClient {
             }
         }finally{connection.disconnect();}
     }
+
+    /**
+     * Authenticated server-side file operations. Never downloads, renames on
+     * collision, or deletes data. Based on TeraBox's /api/filemanager contract;
+     * a provider rejection is an error, not a silently successful move.
+     */
+    private JSONObject postCloud(String endpoint,Map<String,String> query,
+                                 Map<String,String> fields)throws Exception {
+        Uri.Builder url=Uri.parse(API+endpoint).buildUpon()
+            .appendQueryParameter("app_id","250528")
+            .appendQueryParameter("channel","dubox")
+            .appendQueryParameter("clienttype","0");
+        for(Map.Entry<String,String> arg:query.entrySet())
+            url.appendQueryParameter(arg.getKey(),arg.getValue());
+        HttpURLConnection conn=(HttpURLConnection)new URL(url.build().toString()).openConnection();
+        conn.setInstanceFollowRedirects(false);
+        conn.setRequestMethod("POST");
+        conn.setConnectTimeout(8500);
+        conn.setReadTimeout(45000);
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Cookie",cookie());
+        conn.setRequestProperty("Referer",API+"/");
+        conn.setRequestProperty("X-Requested-With","XMLHttpRequest");
+        conn.setRequestProperty("Accept","application/json");
+        conn.setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36");
+        conn.setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8");
+        StringBuilder form=new StringBuilder();
+        for(Map.Entry<String,String> field:fields.entrySet()){
+            if(form.length()>0)form.append('&');
+            form.append(java.net.URLEncoder.encode(field.getKey(),"UTF-8"));
+            form.append('=');
+            form.append(java.net.URLEncoder.encode(field.getValue(),"UTF-8"));
+        }
+        byte[] data=form.toString().getBytes(StandardCharsets.UTF_8);
+        if(data.length>8192)throw new IOException("Cloud operation too large");
+        try {
+            conn.setFixedLengthStreamingMode(data.length);
+            try(OutputStream out=conn.getOutputStream()){out.write(data);}
+            int status=conn.getResponseCode();
+            if(status!=200)throw new IOException("Cloud operation HTTP "+status);
+            try(InputStream in=conn.getInputStream();
+                ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                byte[] block=new byte[4096];int count;
+                while((count=in.read(block))>=0){
+                    if(out.size()+count>128*1024)throw new IOException("Cloud response too large");
+                    out.write(block,0,count);
+                }
+                JSONObject response=new JSONObject(out.toString("UTF-8"));
+                if(!response.has("errno")||response.optInt("errno",-1)!=0)
+                    throw new IOException("Cloud operation rejected: "+response.optInt("errno",-1));
+                if(response.optJSONObject("info")!=null&&
+                   response.getJSONObject("info").optInt("errno",0)!=0)
+                    throw new IOException("Cloud operation reported nested failure");
+                return response;
+            }
+        }finally{conn.disconnect();}
+    }
+    /** Explicitly create a destination directory. Never overwrite existing. */
+    public void createDirectory(String path)throws Exception {
+        String safe=safePath(path);
+        if("/".equals(safe))return;
+        Map<String,String> query=new LinkedHashMap<>();
+        query.put("a","commit");
+        Map<String,String> form=new LinkedHashMap<>();
+        form.put("path",safe);form.put("isdir","1");
+        form.put("block_list","[]");
+        postCloud("/api/create",query,form);
+    }
+    /** Fail-closed server-side move with source and destination verification. */
+    public void moveFileChecked(String source,String directory,String name,
+                                long expectedSize)throws Exception {
+        String from=safePath(source),dest=safePath(directory);
+        if(from.equals("/")||dest.equals("/")||name==null||
+            name.isBlank()||name.contains("/")||name.contains("\\")||
+            name.equals(".")||name.equals("..")||
+            from.equals(dest+"/"+name))
+            throw new IllegalArgumentException("Invalid move");
+        JSONArray files=new JSONArray();
+        files.put(new JSONObject().put("path",from).put("dest",dest)
+            .put("newname",name));
+        Map<String,String> query=new LinkedHashMap<>();
+        query.put("onnest","fail");query.put("opera","move");
+        Map<String,String> form=new LinkedHashMap<>();
+        form.put("async","0");form.put("filelist",files.toString());
+        form.put("ondup","fail");
+        postCloud("/api/filemanager",query,form);
+        String target=dest+"/"+name;
+        JSONObject readBack=fileDetails(target);
+        if(!target.equals(readBack.optString("path","")))
+            throw new IOException("Move response unverified: destination path");
+        long remoteSize=readBack.optLong("size",-1);
+        if(expectedSize>=0&&remoteSize!=expectedSize)
+            throw new IOException("Move response unverified: destination size");
+    }
+
+
+    /** Fresh metadata for newest incoming items; bypass the browsing cache. */
+    public JSONArray listIncomingPage(String path,int page)throws Exception{
+        if(page<1||page>20)throw new IllegalArgumentException("Incoming page out of range");
+        Map<String,String> args=new LinkedHashMap<>();
+        args.put("dir",safePath(path));
+        args.put("page",Integer.toString(page));
+        args.put("num",Integer.toString(PAGE));
+        args.put("order","time");args.put("desc","1");args.put("web","1");
+        JSONObject data=api("/api/list",args);
+        JSONArray rows=data.optJSONArray("list");
+        if(rows==null)throw new IOException("TeraBox incoming listing not available");
+        return rows;
+    }
     public JSONArray listPage(String path,int page) throws Exception{
         if(page<1||page>100000)throw new IllegalArgumentException("Page out of range");
         Map<String,String> args=new LinkedHashMap<>();

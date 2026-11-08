@@ -1,0 +1,115 @@
+
+/* Atlas × Obsidian cloud-first Rounder 0.15.17. Real metadata/previews only. */
+.fg-library-root{--lux-gold:#d7ae7f;--lux-stroke:#41526a;
+background:linear-gradient(155deg,#111c2e,#0a1323 70%)!important;color:#f5f2ed!important}
+.fg-library-root .fg-lib-header{background:linear-gradient(115deg,#19283f,#111d30)!important;
+border-bottom:1px solid #e1c19a27!important}
+.fg-library-root .fg-lib-primary{background:linear-gradient(135deg,#edcda4,#c4935f)!important;
+border:none!important;color:#142033!important;box-shadow:0 6px 20px #0003}
+.fg-library-root .fg-lib-actions{gap:6px!important}
+.fg-library-root .fg-premium-organize{background:#263751!important;
+border-color:#576d88!important;color:#f2ece5!important}
+.fg-library-root .fg-premium-settings{height:40px;width:40px;min-width:40px;
+border-radius:12px!important;font-size:21px!important}
+.fg-library-root .fg-premium-intro{display:flex;flex-direction:column;gap:8px;
+padding:18px 4px 19px}
+.fg-library-root .fg-premium-intro[hidden]{display:none!important}
+.fg-premium-eyebrow{color:#d9b28a;font:700 10px/1.25 system-ui;letter-spacing:.16em}
+.fg-library-root .fg-premium-title{margin:0;font:700 clamp(24px,5vw,33px)/1.16 system-ui;
+letter-spacing:-.03em;color:#f8f2eb}
+.fg-library-root .fg-premium-summary{margin:0;color:#adbed0;
+font:13px/1.5 system-ui;max-width:510px}
+.fg-library-root .fg-lib-toolbar{border-radius:16px!important;background:#152237!important;
+padding:9px!important;border:1px solid #384961!important;gap:8px!important}
+.fg-library-root .fg-lib-search{min-height:45px;border-radius:12px!important;
+color:#fff!important;background:#24344d!important;border:1px solid #486180!important}
+.fg-library-root .fg-lib-filters{display:flex!important;overflow-x:auto;
+flex-wrap:nowrap!important;scrollbar-width:none;padding:9px 0!important}
+.fg-library-root .fg-lib-filters.fg-lib-hidden{display:none!important}
+.fg-library-root .fg-lib-filter{background:#202f46!important;border:1px solid #3d516b!important;
+color:#e2e7ef!important;border-radius:12px!important;flex:0 0 auto}
+.fg-library-root .fg-lib-filter.fg-lib-selected{background:linear-gradient(125deg,#d7b184,#b58d64)!important;
+border-color:#c49c70!important;color:#131d2b!important}
+.fg-library-root .fg-lib-tile{border:1px solid #374961!important;
+border-radius:17px!important;overflow:hidden!important;
+background:linear-gradient(145deg,#1e2c41,#101c2f)!important;box-shadow:0 8px 26px #0003}
+.fg-library-root .fg-premium-folder .fg-lib-cover{min-height:0!important;height:108px!important;
+aspect-ratio:auto!important;position:relative;
+background:radial-gradient(circle at 80% 15%,#42506a,transparent 62%),
+linear-gradient(145deg,#283a51,#162238)!important}
+.fg-library-root .fg-premium-folder .fg-lib-fallback{display:flex!important;
+align-items:center;justify-content:center;opacity:.9;background:none!important}
+.fg-library-root .fg-premium-folder .fg-lib-fallback-glyph{font-size:38px!important;
+color:#e6c199!important}
+.fg-library-root .fg-premium-folder .fg-lib-tile-meta{padding:12px 10px!important;
+gap:5px!important}
+.fg-library-root .fg-premium-folder .fg-lib-item-title{color:#f8f2ea!important;
+font-size:14px!important;font-weight:700}
+.fg-library-root .fg-premium-folder .fg-lib-item-detail{font-size:11px!important;
+color:#acbfd4!important}
+.fg-library-root .fg-premium-mosaic{position:absolute;inset:0;display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;background:#1b2b44;overflow:hidden}
+.fg-library-root .fg-premium-mosaic-image{height:100%;width:100%;
+object-fit:cover!important;display:block}
+.fg-library-root .fg-premium-cover-ready .fg-lib-fallback{display:none!important}
+.fg-org-backdrop{position:fixed;z-index:2147483639;inset:0;
+background:#030a16d6;display:flex;align-items:flex-end;justify-content:center;
+backdrop-filter:blur(8px)}
+.fg-org-sheet{box-sizing:border-box;width:100%;max-width:720px;height:min(88vh,920px);
+display:flex;flex-direction:column;background:linear-gradient(155deg,#1c2b42,#0f1a2b);
+color:#f9f6f2;border-radius:24px 24px 0 0;border:1px solid #54647c;
+box-shadow:0 -16px 65px #000a;padding:19px 16px 24px}
+.fg-org-header{display:flex;justify-content:space-between;align-items:center}
+.fg-org-header h2{margin:4px 0 0;font:750 24px system-ui;letter-spacing:-.04em}
+.fg-org-close,.fg-org-tab,.fg-org-small,.fg-org-scan{border-radius:12px;
+border:1px solid #536988;background:#283a53;color:#eff3fa;
+padding:10px 13px;font:600 12px system-ui;cursor:pointer}
+.fg-org-close{font-size:17px}
+.fg-org-description,.fg-org-muted{font:12px/1.5 system-ui;color:#b5c3d5}
+.fg-org-description{margin:11px 0}
+.fg-org-tabs{display:flex;gap:8px;padding:4px 0 12px}
+.fg-org-tab{flex:1}
+.fg-org-tab.active{background:#d9b184;border-color:#d9b184;color:#122139}
+.fg-org-content{overflow-y:auto;min-height:0;flex:1;overscroll-behavior:contain}
+.fg-org-stat{font:650 14px system-ui;color:#f2eee7}
+.fg-org-filelist{display:flex;flex-direction:column;gap:8px}
+.fg-org-row{display:flex;align-items:flex-start;gap:11px;padding:12px;
+background:#21324b;border:1px solid #485e7a;border-radius:12px}
+.fg-org-check{margin-top:5px;width:18px;height:18px;accent-color:#ddb589}
+.fg-org-rowtext{display:flex;flex-direction:column;min-width:0;gap:4px}
+.fg-org-rowtext strong{overflow-wrap:anywhere;font:650 13px system-ui}
+.fg-org-rowtext span,.fg-org-rowtext small{color:#b9c6d6;
+font:11px/1.4 system-ui;overflow-wrap:anywhere}
+.fg-org-rowtext .fg-org-destination{color:#e7bb8d}
+.fg-org-controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.fg-org-primary{border:none;border-radius:12px;padding:11px 17px;
+background:linear-gradient(130deg,#eac396,#bd8e5e);color:#112038;
+font:700 13px system-ui}
+.fg-org-primary:disabled{opacity:.45}
+.fg-org-scan{width:100%;margin:8px 0}
+.fg-org-auto{display:flex;gap:10px;align-items:center;
+padding:13px 4px;border-top:1px solid #43546c;font:12px/1.4 system-ui}
+.fg-org-auto input{width:18px;height:18px;accent-color:#d9b184}
+.fg-org-status{padding:11px;border:1px solid #657794;border-radius:10px;
+color:#f0c796;background:#263954;font:12px/1.4 system-ui;overflow-wrap:anywhere}
+.fg-org-group-title{font:700 15px system-ui;margin:15px 0 8px}
+.fg-org-dupe{border:1px solid #455b78;background:#1d2e46;border-radius:12px;
+padding:13px;margin:8px 0}
+.fg-org-dupe summary{cursor:pointer;font:600 12px system-ui}
+.fg-org-paths p{font:11px/1.5 system-ui;color:#c1cedc;overflow-wrap:anywhere}
+@media(min-width:700px){.fg-org-sheet{margin:4vh auto;border-radius:24px;height:83vh}}
+
+/* Confirmed Asterion app output roots: compact, owner-editable source settings. */
+.fg-org-source-settings{margin:10px 0 14px;background:#192a40;
+ border:1px solid #465a74;border-radius:14px;padding:12px}
+.fg-org-source-header{font:700 13px/1.5 system-ui;color:#e4c29c;cursor:pointer}
+.fg-org-source-list{display:flex;flex-direction:column;gap:10px;margin:12px 0 2px}
+.fg-org-source-record{display:flex;flex-direction:column;gap:8px;
+ padding:12px;border-radius:12px;border:1px solid #405572;background:#23344d}
+.fg-org-source-name{color:#f5f1eb;font:700 13px/1.4 system-ui}
+.fg-org-source-input{box-sizing:border-box;width:100%;min-height:42px;
+ padding:9px 11px;color:#f7f5f0;background:#132238;
+ border:1px solid #667b94;border-radius:10px;font:12px system-ui}
+.fg-org-source-input::placeholder{color:#91a3b7}
+.fg-org-source-record .fg-org-auto{margin:0;padding:2px 0;border:0}
+.fg-org-source-record .fg-org-small{align-self:flex-start}
