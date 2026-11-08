@@ -118,7 +118,9 @@ function renderIndexedResults(){
   deck.className='fg-lib-grid'+(list?' fg-lib-list':'')+
       (filter==='video'?' fg-lib-video-grid':'');
   retainedCards.clear();lastVisibleKeys='';
-  deck.replaceChildren();empty.replaceChildren();
+  // Search-result pages are separate from the cached, image-rich folder grid.
+  deck.replaceChildren();
+  empty.replaceChildren();
   indexedResults.forEach((item,i)=>deck.appendChild(card(item,indexedOffset+i)));
   loading.classList.add('fg-lib-hidden');
   deck.classList.remove('fg-lib-hidden');
