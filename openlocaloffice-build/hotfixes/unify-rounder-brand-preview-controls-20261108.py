@@ -167,6 +167,49 @@ m=one(m,"            @Override public void onPlayerError(PlaybackException error
 """            @Override public void onPlayerError(PlaybackException error){
                 bufferingSequence[0]++;
                 status.setClickable(false);""","don't show stale buffering message after hard error")
+# The existing native player transports stay functional; align their icons with
+# the library's 24px vector language rather than asymmetric hand-drawn arrows.
+transport=m.find("    private static final class VideoTransport extends View{")
+if transport<0:raise AssertionError("Existing video transport missing")
+draw=m.find("        @Override protected void onDraw(android.graphics.Canvas c){",transport)
+stop=m.find("\n        }\n    }\n",draw)
+if draw<0 or stop<0:raise AssertionError("Video transport drawing bounds changed")
+new_draw="""        @Override protected void onDraw(android.graphics.Canvas c){
+            super.onDraw(c);
+            float cx=getWidth()/2f,cy=getHeight()/2f;
+            float radius=Math.min(getWidth(),getHeight())*.48f;
+            paint.setStyle(android.graphics.Paint.Style.FILL);
+            paint.setColor(role==1?0xe01d2d43:0xd21b2a3f);
+            c.drawCircle(cx,cy,radius,paint);
+            paint.setColor(0xfff0d3aa);
+            paint.setStrokeWidth(2.25f*dp);
+            paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+            paint.setStrokeJoin(android.graphics.Paint.Join.ROUND);
+            if(role==1){
+                paint.setStyle(android.graphics.Paint.Style.FILL);
+                if(playing){
+                    c.drawRoundRect(cx-6*dp,cy-9*dp,cx-2*dp,cy+9*dp,1.3f*dp,1.3f*dp,paint);
+                    c.drawRoundRect(cx+2*dp,cy-9*dp,cx+6*dp,cy+9*dp,1.3f*dp,1.3f*dp,paint);
+                }else{
+                    android.graphics.Path play=new android.graphics.Path();
+                    play.moveTo(cx-5*dp,cy-9*dp);
+                    play.lineTo(cx+9*dp,cy);
+                    play.lineTo(cx-5*dp,cy+9*dp);
+                    play.close();c.drawPath(play,paint);
+                }
+            }else{
+                paint.setStyle(android.graphics.Paint.Style.STROKE);
+                final float direction=role==0?-1f:1f;
+                android.graphics.Path skip=new android.graphics.Path();
+                skip.moveTo(cx-4*direction*dp,cy-8*dp);
+                skip.lineTo(cx+4*direction*dp,cy);
+                skip.lineTo(cx-4*direction*dp,cy+8*dp);
+                c.drawPath(skip,paint);
+                c.drawLine(cx+9*direction*dp,cy-9*dp,
+                    cx+9*direction*dp,cy+9*dp,paint);
+            }
+        }"""
+m=m[:draw]+new_draw+m[stop+len("\n        }"):]
 media.write_text(m,encoding="utf-8")
 
 # Recover once when signed TeraBox cover URLs expire. No full originals fetched.
