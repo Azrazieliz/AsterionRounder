@@ -89,6 +89,81 @@ public final class FgRounderOrganizer {
             default:return "";
         }
     }
+
+    /**
+     * Refresh the known downloader ingress paths, not the entire cloud.
+     * Round-robin nested subfolders over successive runs for bounded traffic.
+     */
+    public JSONObject scanIncoming()throws Exception{
+        String scope=index.currentScope();int gen=index.currentGeneration();
+        JSONObject out=new JSONObject().put("indexed",0).put("folders",0);
+        if(scope.isEmpty()||gen==0)return out.put("pendingIndex",true);
+        ArrayList<String> folders=new ArrayList<>();
+        for(String root:INBOXES)folders.add(root);
+        try(Cursor c=index.metadata().rawQuery(
+            "SELECT path FROM objects WHERE scope=? AND generation=? AND folder=1"+
+            " AND (path LIKE '/Nocturne/%' OR path LIKE '/AsterionDownloader/%'"+
+            " OR path LIKE '/Incoming/%' OR path LIKE '/Downloads/%') ORDER BY path",
+            new String[]{scope,Integer.toString(gen)})){
+            while(c.moveToNext()&&folders.size()<1500)folders.add(c.getString(0));
+        }
+        int offset=prefs.getInt("subfolder_offset",0);
+        int inspected=0,admitted=0,failed=0;
+        ArrayList<String> selected=new ArrayList<>();
+        // Always inspect six source roots; rotate twelve nested directories.
+        for(int i=0;i<INBOXES.length;i++)selected.add(INBOXES[i]);
+        int subCount=Math.max(0,folders.size()-INBOXES.length);
+        for(int i=0;i<Math.min(12,subCount);i++)
+            selected.add(folders.get(INBOXES.length+(offset+i)%subCount));
+        if(subCount>0)prefs.edit().putInt("subfolder_offset",
+            (offset+12)%subCount).apply();
+        for(String folder:selected){
+            if(stop||!scope.equals(index.currentScope()))break;
+            try{
+                // Newest-first: early pages cover newly uploaded work.
+                for(int page=1;page<=3;page++){
+                    JSONArray rows=cloud.listIncomingPage(folder,page);
+                    admitted+=index.ingestIncoming(folder,page,rows);
+                    if(rows.length()<FgTeraboxClient.pageSize())break;
+                }
+                inspected++;
+            }catch(Exception unavailable){
+                // A missing source is normal. Do not invent a success receipt.
+                failed++;
+            }
+        }
+        return out.put("indexed",admitted).put("folders",inspected)
+            .put("unavailable",failed)
+            .put("partial",subCount>12);
+    }
+    /** Auto routing is explicit opt-in and applies only deterministic rules. */
+    public JSONObject autoRun(Reporter reporter)throws Exception{
+        JSONObject scan=scanIncoming();
+        if(!autoEnabled()||index.currentGeneration()==0)
+            return scan.put("automatic",false);
+        JSONObject candidateReview=review();
+        JSONArray proposals=candidateReview.optJSONArray("proposals");
+        JSONArray batch=new JSONArray();
+        if(proposals!=null){
+            for(int i=0;i<proposals.length()&&batch.length()<20;i++){
+                String source=proposals.getJSONObject(i).optString("source","");
+                String identity=skipIdentity(index.currentScope(),source);
+                if(prefs.getBoolean("skip_"+identity,false))continue;
+                batch.put(source);
+            }
+        }
+        if(batch.length()>0)applyInternal(batch,reporter,true);
+        return scan.put("automatic",true).put("scheduled",batch.length());
+    }
+    private static String skipIdentity(String scope,String path){
+        try{
+            java.security.MessageDigest digest=java.security.MessageDigest.getInstance("SHA-256");
+            byte[] bytes=digest.digest((scope+"|"+path).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder id=new StringBuilder();
+            for(int i=0;i<16;i++)id.append(String.format(Locale.ROOT,"%02x",bytes[i]&255));
+            return id.toString();
+        }catch(Exception impossible){throw new IllegalStateException(impossible);}
+    }
     public JSONObject review()throws Exception {
         String scope=index.currentScope();
         int gen=index.currentGeneration();
@@ -215,6 +290,9 @@ public final class FgRounderOrganizer {
         }
     }
     public void apply(JSONArray paths,Reporter callback)throws Exception{
+        applyInternal(paths,callback,false);
+    }
+    private void applyInternal(JSONArray paths,Reporter callback,boolean automatic)throws Exception{
         if(paths==null||paths.length()<1||paths.length()>APPLY_LIMIT)
             throw new IllegalArgumentException("Select 1–30 proposed files");
         synchronized(EXECUTION_LOCK) {
@@ -252,6 +330,10 @@ public final class FgRounderOrganizer {
                     event.put("status","moved").put("target",dest+"/"+name);
                 }catch(Exception error){
                     failed++;
+                    // Automated failure cannot be retried blindly if the
+                    // server may have moved the original already.
+                    if(automatic) prefs.edit().putBoolean(
+                        "skip_"+skipIdentity(scope,source),true).apply();
                     event.put("status","review")
                          .put("error",String.valueOf(error.getMessage()));
                 }
