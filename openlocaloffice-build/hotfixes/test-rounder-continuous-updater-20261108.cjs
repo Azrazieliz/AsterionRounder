@@ -64,7 +64,10 @@ for(const item of [
  'Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES',
  'Intent.ACTION_VIEW',
  'FLAG_GRANT_READ_URI_PERMISSION',
- 'FgRounderUpdateProvider.APK'
+ 'FgRounderUpdateProvider.APK',
+ 'installedReleaseRun',
+ 'rounder-build.json',
+ 'if(number<=installedReleaseRun)continue'
 ])need(updater,item);
 need(provider,'MODE_READ_ONLY');
 need(provider,'read only');
