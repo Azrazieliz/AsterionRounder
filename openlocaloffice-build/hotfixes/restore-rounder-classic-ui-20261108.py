@@ -73,7 +73,8 @@ restored=old_style+"\n"+"""/* Asterion Rounder: restored original library UI. Na
  border:1px solid #52617d!important;border-radius:11px}
 .fg-library-root .fg-vault-update-available{border-color:#d5b087!important;
  color:#e2bd93!important}
-.fg-library-root .fg-vault-folderrail,.fg-library-root .fg-vault-spacer{display:none!important}
+.fg-library-root .fg-vault-folderrail{display:none!important}
+.fg-library-root .fg-vault-spacer{display:block!important;min-height:0!important}
 .fg-library-root .fg-lib-pager,.fg-library-root .fg-lib-page-control{display:none!important}
 .fg-library-root .fg-premium-intro{display:none!important}
 .fg-library-root .fg-lib-actions button{min-height:36px}
