@@ -35,8 +35,8 @@ public final class FgRounderOrganizer {
         this.cloud=cloud;this.index=index;
         prefs=this.app.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
     }
-    public boolean autoEnabled(){return prefs.getBoolean("auto",false);}
-    public void setAutoEnabled(boolean enabled){prefs.edit().putBoolean("auto",enabled).apply();}
+    public boolean autoEnabled(){String scope=index.currentScope();return !scope.isEmpty()&&prefs.getBoolean("auto_"+scope,false);}
+    public void setAutoEnabled(boolean enabled){String scope=index.currentScope();if(!scope.isEmpty())prefs.edit().putBoolean("auto_"+scope,enabled).apply();}
     public void stop(){stop=true;}
     private static boolean inside(String file,String directory) {
         return file.startsWith(directory+"/")&&!file.equals(directory+"/");
