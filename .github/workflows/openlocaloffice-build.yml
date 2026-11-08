@@ -375,6 +375,19 @@ jobs:
           ! grep -q 'SDOCX preview is read-only' app/src/main/java/com/openlocal/office/MainActivity.java
           ! grep -q 'Page →' app/src/main/assets/app.js
 
+      - name: Install continuous vault and native self-updater
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderUpdater.java app/src/main/java/com/openlocal/office/core/FgRounderUpdater.java
+          cp ../additions/FgRounderUpdateProvider.java app/src/main/java/com/openlocal/office/core/FgRounderUpdateProvider.java
+          python3 ../hotfixes/apply-rounder-self-update-20261108.py
+          python3 ../hotfixes/apply-rounder-continuous-ui-20261108.py
+          python3 -m py_compile ../hotfixes/apply-rounder-self-update-20261108.py ../hotfixes/apply-rounder-continuous-ui-20261108.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-continuous-updater-20261108.cjs
+
       - name: Export assembled source for implementation audit
         uses: actions/upload-artifact@v4
         with:
