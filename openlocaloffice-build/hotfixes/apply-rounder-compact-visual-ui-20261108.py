@@ -46,10 +46,10 @@ once("meta.append(E('strong','',item.name),E('small','','Folder · TeraBox'));",
 once("if(detail)detail.textContent='Open collection';",
 "if(detail)detail.textContent='Folder';",
 "fallback folder metadata")
-once("heading.textContent=cloudMode?(currentFolder?'Collection':'Your library'):'Your library';",
-"""heading.textContent=cloudMode?(currentFolder?
-    currentFolder.split('/').filter(Boolean).slice(-1)[0]:'TeraBox'):'Local files';""",
-"one useful breadcrumb title")
+old_heading="heading.textContent=cloudMode?(currentFolder?'Collection':'Your library'):'Your library';"
+assert s.count(old_heading)==2,"Expected two library heading assignments"
+s=s.replace(old_heading,
+    "heading.textContent=cloudMode?(currentFolder?currentFolder.split('/').filter(Boolean).slice(-1)[0]:'TeraBox'):'Local files';")
 # Updated duplicate viewer is assembled inside the existing organizer fragment.
 assert "renderDuplicateWorkspace(body)" in s
 assert "function managerCleanupProgress(event)" in s
