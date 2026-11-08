@@ -26,13 +26,11 @@ public final class FgRounderOrganizer {
     private static final int REVIEW_LIMIT=120;
     private static final int APPLY_LIMIT=30;
     private static final String PREFS="fg_rounder_organizer_v1";
-    private static final String[] INBOXES={
-        "/Nocturne/Kuroha","/Nocturne/Kyora","/Nocturne/VideoFlow",
-        "/AsterionDownloader","/Incoming","/Downloads"
-    };
+    private final FgRounderSources sources;
     public FgRounderOrganizer(Context app,FgTeraboxClient cloud,FgTeraboxSearchIndex index){
         this.app=app.getApplicationContext();
         this.cloud=cloud;this.index=index;
+        this.sources=new FgRounderSources(this.app,index);
         prefs=this.app.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
     }
     public boolean autoEnabled(){String scope=index.currentScope();return !scope.isEmpty()&&prefs.getBoolean("auto_"+scope,false);}
@@ -46,48 +44,13 @@ public final class FgRounderOrganizer {
         if(!inside(path,prefix))return "";
         return path.substring(prefix.length()+1);
     }
-    private static String kind(String name) {
-        String n=name.toLowerCase(Locale.ROOT);
-        if(n.matches(".*\\.(png|jpe?g|webp|bmp|gif|avif|heif|heic|tiff?)$"))return "image";
-        if(n.matches(".*\\.(mp4|webm|mkv|mov|avi|m4v|wmv)$"))return "video";
-        if(n.matches(".*\\.(mp3|m4a|flac|wav|ogg|opus|aac)$"))return "audio";
-        if(n.matches(".*\\.(epub|mobi|azw3)$"))return "book";
-        if(n.matches(".*\\.(cbz|cbr|cb7)$"))return "comic";
-        if(n.endsWith(".pdf"))return "pdf";
-        if(n.matches(".*\\.(apk|apks|xapk|aab|exe|msi|deb|rpm)$"))return "app";
-        if(n.matches(".*\\.(glb|gltf|fbx|obj|vrm|blend|pmx|pmd)$"))return "model";
-        if(n.matches(".*\\.(docx?|xlsx?|pptx?|odt|ods|csv|txt|md|rtf)$"))return "document";
-        if(n.matches(".*\\.(zip|7z|rar|tar|gz|bz2)$"))return "archive";
-        return "other";
+    public void configureSource(String id,String folder,boolean automatic){
+        sources.configure(id,folder,automatic);
     }
-    /** Only known, explicitly designated incoming directories may be moved. */
-    public static String destination(String path) {
-        if(path==null||!path.startsWith("/")||path.contains("/../")||
-            path.contains("/./")||path.contains("\\")||path.endsWith("/"))
-            return "";
-        final String name=filename(path);
-        final String kind=kind(name);
-        // Source provenance wins for art downloads, never for unrelated files.
-        if(inside(path,"/Nocturne/Kuroha")&&kind.equals("image"))
-            return "/Art/Pixiv";
-        if(inside(path,"/Nocturne/Kyora")&&kind.equals("image"))
-            return "/Art/Cosplay";
-        if(inside(path,"/Nocturne/VideoFlow")&&kind.equals("video"))
-            return "/Videos/Downloader";
-        boolean otherSource=false;
-        for(String inbox:INBOXES)if(inside(path,inbox))otherSource=true;
-        if(!otherSource)return "";
-        switch(kind) {
-            case "image":return "/Art/Downloads";
-            case "book":case "comic":case "pdf":return "/Books/Downloads";
-            case "app":return "/Apps/Downloads";
-            case "video":return "/Videos/Downloads";
-            case "audio":return "/Audio/Downloads";
-            case "document":return "/Documents/Downloads";
-            case "model":return "/3D/Downloads";
-            case "archive":return "/Archives/Downloads";
-            default:return "";
-        }
+    private static String kind(String name){return FgRounderSources.classify(name);}
+    private String destination(String path){
+        FgRounderSources.Route route=sources.route(path);
+        return route==null?"":route.destination;
     }
 
     /**
@@ -99,23 +62,34 @@ public final class FgRounderOrganizer {
         String scope=index.currentScope();int gen=index.currentGeneration();
         JSONObject out=new JSONObject().put("indexed",0).put("folders",0);
         if(scope.isEmpty()||gen==0)return out.put("pendingIndex",true);
-        ArrayList<String> folders=new ArrayList<>();
-        for(String root:INBOXES)folders.add(root);
-        try(Cursor c=index.metadata().rawQuery(
-            "SELECT path FROM objects WHERE scope=? AND generation=? AND folder=1"+
-            " AND (path LIKE '/Nocturne/%' OR path LIKE '/AsterionDownloader/%'"+
-            " OR path LIKE '/Incoming/%' OR path LIKE '/Downloads/%') ORDER BY path",
-            new String[]{scope,Integer.toString(gen)})){
-            while(c.moveToNext()&&folders.size()<1500)folders.add(c.getString(0));
+        ArrayList<String> roots=sources.roots();
+        ArrayList<String> folders=new ArrayList<>(roots);
+        ArrayList<String> args=new ArrayList<>();
+        StringBuilder query=new StringBuilder(
+            "SELECT path FROM objects WHERE scope=? AND generation=? AND folder=1 AND (");
+        args.add(scope);args.add(String.valueOf(gen));
+        for(int i=0;i<roots.size();i++){
+            if(i>0)query.append(" OR ");
+            query.append("path LIKE ? ESCAPE '\\'");
+            String prefix=roots.get(i).replace("\\","\\\\")
+                .replace("%","\\%").replace("_","\\_");
+            args.add(prefix+"/%");
+        }
+        query.append(") ORDER BY path LIMIT 1490");
+        try(Cursor c=index.metadata().rawQuery(query.toString(),args.toArray(new String[0]))){
+            while(c.moveToNext()&&folders.size()<1500){
+                String item=c.getString(0);
+                if(!folders.contains(item))folders.add(item);
+            }
         }
         int offset=prefs.getInt("subfolder_offset",0);
         int inspected=0,admitted=0,failed=0;
         ArrayList<String> selected=new ArrayList<>();
-        // Always inspect six source roots; rotate twelve nested directories.
-        for(int i=0;i<INBOXES.length;i++)selected.add(INBOXES[i]);
-        int subCount=Math.max(0,folders.size()-INBOXES.length);
+        // Visit configured roots and generic inboxes; rotate nested folders.
+        selected.addAll(roots);
+        int subCount=Math.max(0,folders.size()-roots.size());
         for(int i=0;i<Math.min(quick?4:12,subCount);i++)
-            selected.add(folders.get(INBOXES.length+(offset+i)%subCount));
+            selected.add(folders.get(roots.size()+(offset+i)%subCount));
         if(subCount>0)prefs.edit().putInt("subfolder_offset",
             (offset+(quick?4:12))%subCount).apply();
         for(String folder:selected){
@@ -148,6 +122,8 @@ public final class FgRounderOrganizer {
         if(proposals!=null){
             for(int i=0;i<proposals.length()&&batch.length()<20;i++){
                 String source=proposals.getJSONObject(i).optString("source","");
+                FgRounderSources.Route route=sources.route(source);
+                if(route==null||!route.auto)continue;
                 String identity=skipIdentity(index.currentScope(),source);
                 if(prefs.getBoolean("skip_"+identity,false))continue;
                 batch.put(source);
@@ -170,19 +146,25 @@ public final class FgRounderOrganizer {
         int gen=index.currentGeneration();
         JSONObject out=new JSONObject().put("accountReady",!scope.isEmpty())
             .put("indexReady",gen>0).put("auto",autoEnabled());
+        out.put("sources",sources.profiles());
         JSONArray rules=new JSONArray();
-        for(String source:INBOXES)
-            rules.put(new JSONObject().put("source",source).put("rule","Extension + trusted origin"));
+        for(String source:sources.roots())
+            rules.put(new JSONObject().put("source",source)
+                .put("rule","Verified configured app-origin folder or generic incoming"));
         out.put("rules",rules);
         JSONArray proposals=new JSONArray();
         if(gen==0)return out.put("proposals",proposals).put("hasMore",false);
         ArrayList<String> args=new ArrayList<>();
-        StringBuilder sql=new StringBuilder("SELECT path,name,size,modified,checksum FROM objects WHERE scope=? AND generation=? AND folder=0 AND (");
+        ArrayList<String> roots=sources.roots();
+        StringBuilder sql=new StringBuilder(
+            "SELECT path,name,size,modified,checksum FROM objects"+
+            " WHERE scope=? AND generation=? AND folder=0 AND (");
         args.add(scope);args.add(Integer.toString(gen));
-        for(int i=0;i<INBOXES.length;i++){
+        for(int i=0;i<roots.size();i++){
             if(i>0)sql.append(" OR ");
-            sql.append("path LIKE ?");
-            args.add(INBOXES[i]+"/%");
+            sql.append("path LIKE ? ESCAPE '\\'");
+            args.add(roots.get(i).replace("\\","\\\\")
+                .replace("%","\\%").replace("_","\\_")+"/%");
         }
         sql.append(") ORDER BY modified DESC,path LIMIT ?");
         args.add(Integer.toString(REVIEW_LIMIT*3+1));
@@ -206,11 +188,9 @@ public final class FgRounderOrganizer {
         out.put("proposedCount",eligible);
         return out;
     }
-    private static String originReason(String path){
-        if(inside(path,"/Nocturne/Kuroha"))return "Kuroha / Pixiv source";
-        if(inside(path,"/Nocturne/Kyora"))return "Kyora / cosplay source";
-        if(inside(path,"/Nocturne/VideoFlow"))return "VideoFlow source";
-        return "File extension in an incoming/download folder";
+    private String originReason(String path){
+        FgRounderSources.Route route=sources.route(path);
+        return route==null?"Source not established":route.reason;
     }
     /** Hash-based groups are strong metadata evidence, not a freshly recomputed SHA-256. */
     public JSONObject duplicates()throws Exception{
