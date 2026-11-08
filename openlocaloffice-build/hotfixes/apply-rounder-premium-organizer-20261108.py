@@ -77,6 +77,19 @@ r'''        @JavascriptInterface public void fetchTeraboxFolderPreviews(String f
         @JavascriptInterface public void organizerStop(){
             fgOrganizer().stop();
         }
+        @JavascriptInterface public void organizerConfigureSource(
+                String id,String folder,boolean automatic){
+            fgDirectoryExecutor.execute(()->{
+                try{
+                    fgOrganizer().configureSource(id,folder,automatic);
+                    String data=fgOrganizer().review().toString();
+                    runOnUiThread(()->{
+                        js("window.FileGestionerLibrary?.managerReview("+data+")");
+                        js("window.FileGestionerLibrary?.managerSourceSaved()");
+                    });
+                }catch(Exception e){fgOrganizerFailure("source",e);}
+            });
+        }
         @JavascriptInterface public void organizerAuto(boolean enable){
             if(!tb().configured())return;
             fgOrganizer().setAutoEnabled(enable);
