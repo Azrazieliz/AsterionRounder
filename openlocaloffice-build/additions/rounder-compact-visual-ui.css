@@ -103,13 +103,13 @@
  border:1px solid #40536d!important;background:#1b2b42!important;color:#faf7f1!important;
  text-align:left!important;box-shadow:none!important
 }
-.fg-library-root .fg-vault-folder-art{
+.fg-library-root .fg-vault-folder > .fg-vault-folder-art{
  display:flex!important;align-items:center!important;justify-content:center!important;
  width:48px!important;height:57px!important;min-width:48px!important;
  flex:0 0 48px!important;overflow:hidden!important;border-radius:8px!important;
  background:linear-gradient(145deg,#5a6b82,#26394d)!important
 }
-.fg-library-root .fg-vault-folder-art.fg-vault-has-cover{
+.fg-library-root .fg-vault-folder > .fg-vault-folder-art.fg-vault-has-cover{
  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:2px!important
 }
 .fg-library-root .fg-vault-folder-image{width:100%!important;height:100%!important;
