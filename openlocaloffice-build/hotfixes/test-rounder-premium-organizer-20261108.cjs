@@ -60,6 +60,6 @@ assert(!ui.includes('actions.append(openBtn,collectionBtn,tbBtn)'),
 has(css,['Atlas × Obsidian cloud-first Rounder 0.15.17',
  '.fg-premium-mosaic','.fg-org-sheet']);
 has(manifest,['FgRounderOrganizeJob','android.permission.BIND_JOB_SERVICE']);
-assert.match(gradle,/versionCode\s*=\s*39/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.17"/);
+assert.match(gradle,/versionCode\s*=\s*40/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.18"/);
 console.log('ROUNDER_ORGANIZER_CONTRACT_PASS: unified Downloader, configured app export roots, metadata-only duplicate tiers, no delete, reviewed moves, opt-in scheduled scans');
