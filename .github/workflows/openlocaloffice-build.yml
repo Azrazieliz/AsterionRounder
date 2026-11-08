@@ -408,6 +408,16 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-compact-visual-ui-20261108.cjs
 
+      - name: Unify launcher identity, preview feedback and navigation
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/unify-rounder-brand-preview-controls-20261108.py
+          python3 ../hotfixes/unify-rounder-brand-preview-controls-20261108.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-brand-preview-controls-20261108.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
