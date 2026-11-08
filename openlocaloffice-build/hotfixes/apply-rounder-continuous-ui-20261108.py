@@ -37,7 +37,8 @@ const virtualBottom=E('div','fg-vault-spacer');
 body.insertBefore(folderRail,deck);
 body.insertBefore(virtualTop,deck);
 deck.after(virtualBottom);
-let virtualMode='',virtualKey='',virtualFolderKey='',virtualFiles=[];
+let virtualMode='',virtualKey='',virtualFolderKey='',virtualDataKey='';
+let virtualFiles=[],virtualFolders=[],virtualHasCovers=false,folderRegion=null;
 let virtualLastStart=-1,virtualLastEnd=-1,virtualLastSig='';
 let virtualRowHeight=276,virtualCols=2,virtualScrollTimer=0;
 let updaterPanel=null,updaterData=null,updateChecked=false;""",
@@ -84,24 +85,45 @@ function folderCard(item){
  return button;
 }
 function drawFolderRail(folders,mode){
- const key=mode+'|'+folders.map(x=>x.path||x.id||x.name).join('\n')+'|'+
-  folders.map(x=>(folderPreviewCache.get(x.path||'')||[]).length).join(',');
- if(key===virtualFolderKey)return;
- virtualFolderKey=key;
- folderRail.replaceChildren();
- if(!folders.length){folderRail.hidden=true;return;}
+ if(!folders.length){
+   folderRail.hidden=true;virtualFolderKey='';
+   return;
+ }
  folderRail.hidden=false;
- folderRail.append(E('h2','fg-vault-section-heading',
-   mode==='search'?'Matching collections':'Collections'));
- const content=E('div','fg-vault-folder-grid');
- for(const item of folders.slice(0,200))content.append(folderCard(item));
- folderRail.append(content);
- if(folders.length>200)folderRail.append(E('p','fg-vault-overflow',
-   'Showing the first 200 folders. Narrow your search to find other collections.'));
+ if(!folderRegion||!folderRegion.top.isConnected){
+   const title=E('h2','fg-vault-section-heading',
+     mode==='search'?'Matching collections':'Collections');
+   const top=E('div','fg-vault-spacer');
+   const grid=E('div','fg-vault-folder-grid');
+   const bottom=E('div','fg-vault-spacer');
+   folderRail.replaceChildren(title,top,grid,bottom);
+   folderRegion={title,top,grid,bottom};
+ }
+ folderRegion.title.textContent=mode==='search'?'Matching collections':'Collections';
+ const columns=body.clientWidth>=700?
+   Math.max(1,Math.floor((folderRail.clientWidth+8)/208)):2;
+ const rows=Math.ceil(folders.length/columns),rowHeight=84;
+ const origin=folderRegion.top.getBoundingClientRect().top-
+   body.getBoundingClientRect().top+body.scrollTop;
+ const relative=Math.max(0,body.scrollTop-origin);
+ const firstRow=Math.max(0,Math.min(rows,Math.floor(relative/rowHeight)-4));
+ const visibleRows=Math.max(10,Math.ceil(body.clientHeight/rowHeight)+12);
+ const endRow=Math.min(rows,firstRow+visibleRows);
+ const start=firstRow*columns;
+ const end=Math.min(folders.length,endRow*columns);
+ folderRegion.top.style.height=(firstRow*rowHeight)+'px';
+ folderRegion.bottom.style.height=((rows-endRow)*rowHeight)+'px';
+ const visible=folders.slice(start,end);
+ const sig=mode+'|'+start+'|'+end+'|'+folders.length+'|'+
+   visible.map(x=>(x.path||x.id||x.name)+':' +
+     (folderPreviewCache.get(x.path||'')||[]).length).join('\n');
+ if(sig===virtualFolderKey)return;
+ virtualFolderKey=sig;
+ folderRegion.grid.replaceChildren(...visible.map(folderCard));
 }
 function resetVirtual(mode,key){
  if(mode===virtualMode&&key===virtualKey)return;
- virtualMode=mode;virtualKey=key;virtualFolderKey='';
+ virtualMode=mode;virtualKey=key;virtualFolderKey='';virtualDataKey='';
  virtualLastStart=-1;virtualLastEnd=-1;virtualLastSig='';
  retainedCards.clear();lastVisibleKeys='';
  deck.replaceChildren();
@@ -111,11 +133,17 @@ function resetVirtual(mode,key){
 function showVirtualItems(items,mode,key){
  resetVirtual(mode,key);
  // Folder links are compact separate navigation surfaces, not giant fake covers.
- const folders=items.filter(e=>e.folder);
- const files=items.filter(e=>!e.folder);
- drawFolderRail(folders,mode);
- virtualFiles=files;
- const useList=list||!files.some(e=>e.cover)||filter==='document'||filter==='file';
+ const dataKey=mode+'|'+key+'|'+items.length+'|'+
+   (mode==='browse'?catalogRevision:indexedToken);
+ if(dataKey!==virtualDataKey){
+   virtualDataKey=dataKey;
+   virtualFolders=items.filter(e=>e.folder);
+   virtualFiles=items.filter(e=>!e.folder);
+   virtualHasCovers=virtualFiles.some(e=>!!e.cover);
+ }
+ const files=virtualFiles;
+ drawFolderRail(virtualFolders,mode);
+ const useList=list||!virtualHasCovers||filter==='document'||filter==='file';
  deck.className='fg-lib-grid'+(useList?' fg-lib-list':' fg-vault-media-grid');
  const computedCols=(window.getComputedStyle(deck).gridTemplateColumns.match(/[0-9.]+px/g)||[]).length;
  const columns=useList?1:Math.max(1,computedCols||2);
@@ -155,7 +183,7 @@ function showVirtualItems(items,mode,key){
  virtualLastStart=start;virtualLastEnd=end;virtualLastSig=signature;
 }
 function handleContinuousScroll(){
- if(!visible||(!virtualFiles.length&&!indexedMode()))return;
+ if(!visible||(!virtualFiles.length&&!virtualFolders.length&&!indexedMode()))return;
  if(virtualScrollTimer)return;
  virtualScrollTimer=requestAnimationFrame(()=>{
    virtualScrollTimer=0;
