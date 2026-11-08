@@ -11,7 +11,10 @@ fragment=Path("../additions/rounder-organizer-ui-fragment.js").read_text(encodin
 assert "function managerProgress(event)" in fragment
 assert "function showOrganizer()" in fragment
 assert "function managerError(data)" in fragment
-s=s.replace(anchor,fragment+"\n"+anchor,1)
+visual=Path("../additions/rounder-visual-duplicates.js").read_text(encoding="utf-8")
+assert "function renderDuplicateWorkspace(body)" in visual
+assert "function managerCleanupProgress(event)" in visual
+s=s.replace(anchor,fragment+"\n"+visual+"\n"+anchor,1)
 lib.write_text(s,encoding="utf-8")
 theme=Path("../additions/rounder-premium-theme.css").read_text(encoding="utf-8")
 assert ".fg-org-backdrop" in theme and ".fg-premium-mosaic" in theme
