@@ -40,6 +40,9 @@ assert(!ui.includes("const input=E('input','fg-lib-page-number')"),
   'Visible page number input must be removed');
 assert(!ui.includes("nav.append(prev,E('span','','Page '"),
   'Indexed search pager must be removed');
+need(ui,'folderRegion.grid.replaceChildren(...visible.map(folderCard))');
+assert(!ui.includes('folders.slice(0,200)'),
+  'Folder navigation must not truncate after 200 entries');
 assert(!ui.includes('actions.append(openBtn,collectionBtn,tbBtn)'),
   'Remove obsolete 3-way storage navigation');
 assert(!ui.includes('body.append(premiumIntro,toolbar,filters'),
@@ -72,6 +75,6 @@ need(main,'@JavascriptInterface public void installRounderUpdate()');
 need(manifest,'com.openlocal.office.rounderupdates');
 need(manifest,'android.permission.REQUEST_INSTALL_PACKAGES');
 need(manifest,'android:exported="false"');
-assert.match(gradle,/versionCode\s*=\s*41/);
-assert.match(gradle,/versionName\s*=\s*"0\.15\.19"/);
+assert.match(gradle,/versionCode\s*=\s*42/);
+assert.match(gradle,/versionName\s*=\s*"0\.15\.20"/);
 console.log('ROUNDER_CONTINUOUS_UPDATE_CONTRACT_OK: no numeric pages, bounded DOM, source thumbnails, safe Android in-app updates');
