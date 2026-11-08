@@ -42,6 +42,7 @@ public final class FgRounderUpdater {
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private volatile boolean busy;
     private volatile Candidate latest;
+    private final int installedReleaseRun;
 
     private static final class Candidate {
         String tag,url,sha;
@@ -50,6 +51,18 @@ public final class FgRounderUpdater {
     }
     public FgRounderUpdater(Activity activity,Events events){
         this.activity=activity;this.events=events;
+        int releaseRun=0;
+        try(InputStream stream=activity.getAssets().open("rounder-build.json")){
+            byte[] buffer=new byte[512];
+            int length=stream.read(buffer);
+            if(length>0)releaseRun=new JSONObject(
+                new String(buffer,0,length,java.nio.charset.StandardCharsets.UTF_8))
+                    .optInt("releaseRun",0);
+        }catch(Exception ignored){
+            // Older installed releases lack this asset. Version verification
+            // still rejects APK downgrades or identical Android version codes.
+        }
+        installedReleaseRun=releaseRun;
     }
     private void emit(String status,String message,int percent,JSONObject extra){
         try{
@@ -118,7 +131,7 @@ public final class FgRounderUpdater {
         for(byte b:bytes)builder.append(String.format(Locale.ROOT,"%02x",b&255));
         return builder.toString();
     }
-    private static Candidate discover()throws Exception {
+    private Candidate discover()throws Exception {
         JSONArray releases=new JSONArray(new String(metadata(API,768*1024),
             java.nio.charset.StandardCharsets.UTF_8));
         Candidate best=null;
@@ -130,6 +143,7 @@ public final class FgRounderUpdater {
             int number;
             try{number=Integer.parseInt(tag.substring(tag.lastIndexOf('-')+1));}
             catch(NumberFormatException error){continue;}
+            if(number<=installedReleaseRun)continue;
             JSONArray assets=release.optJSONArray("assets");
             if(assets==null)continue;
             for(int j=0;j<assets.length();j++){
@@ -164,7 +178,7 @@ public final class FgRounderUpdater {
         io.execute(()->{
             try{
                 Candidate found=discover();latest=found;
-                if(found==null){emit("none","No verified signed release is available.",-1,null);return;}
+                if(found==null){emit("none","Rounder is up to date. No newer signed release is available.",100,null);return;}
                 JSONObject detail=new JSONObject().put("tag",found.tag)
                     .put("installedCode",installedCode())
                     .put("size",found.size)
