@@ -130,17 +130,15 @@ settingsBtn.setAttribute('aria-label','TeraBox connection settings');
 actions.append(openBtn,organizeBtn,settingsBtn);
 header.append(brand,actions);''',"cloud-only header actions")
 j=replace_once(j,"let cloudMode=false;","let cloudMode=true;","cloud mode as default")
-j=replace_once(j,"const footer=E('div','fg-lib-footer',",
+j=replace_once(j,"const footer=E('div','fg-lib-footer',\n  'YOUR FILES · LOCAL & CONNECTED STORAGE');",
 '''const premiumIntro=E('section','fg-premium-intro');
 const premiumEyebrow=E('span','fg-premium-eyebrow','ASTERION CLOUD');
 const premiumTitle=E('h1','fg-premium-title','Your collection');
 const premiumSummary=E('p','fg-premium-summary',
   'Browse your TeraBox library, keep reading, and discover your files.');
 premiumIntro.append(premiumEyebrow,premiumTitle,premiumSummary);
-const footer=E('div','fg-lib-footer',''',"premium hero declare")
-# Previous replacement duplicates leftover "'YOUR FILES..." part; correct only the generated declaration.
-j=replace_once(j,"const footer=E('div','fg-lib-footer','\n  'YOUR FILES · LOCAL & CONNECTED STORAGE');",
-                 "const footer=E('div','fg-lib-footer',\n  'YOUR FILES · LOCAL & CONNECTED STORAGE');","footer fix")
+const footer=E('div','fg-lib-footer',
+  'YOUR FILES · LOCAL & CONNECTED STORAGE');''',"premium hero declare")
 j=replace_once(j,"body.append(welcome,dashboard,toolbar,filters,loading,deck,empty,footer);",
 '''body.append(welcome,dashboard,premiumIntro,toolbar,filters,loading,deck,empty,footer);''',"premium home placement")
 j=replace_once(j,"const entryIds=new Set();",
@@ -226,5 +224,5 @@ j=replace_once(j,"  heading.textContent=cloudMode?'TeraBox':'Your library';",
 '''  heading.textContent=cloudMode?(currentFolder?'Collection':'TeraBox'):'Your library';''',
 "cloud title")
 
-# Manager interface — a real modal surface with actionable controls.
-manager=String.raw
+lib.write_text(j,encoding="utf-8")
+print("ROUNDER_PREMIUM_CORE_UI_PATCHED")
