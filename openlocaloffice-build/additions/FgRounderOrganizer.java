@@ -94,7 +94,8 @@ public final class FgRounderOrganizer {
      * Refresh the known downloader ingress paths, not the entire cloud.
      * Round-robin nested subfolders over successive runs for bounded traffic.
      */
-    public JSONObject scanIncoming()throws Exception{
+    public JSONObject scanIncoming()throws Exception{return scanIncoming(false);}
+    public JSONObject scanIncoming(boolean quick)throws Exception{
         String scope=index.currentScope();int gen=index.currentGeneration();
         JSONObject out=new JSONObject().put("indexed",0).put("folders",0);
         if(scope.isEmpty()||gen==0)return out.put("pendingIndex",true);
@@ -113,15 +114,15 @@ public final class FgRounderOrganizer {
         // Always inspect six source roots; rotate twelve nested directories.
         for(int i=0;i<INBOXES.length;i++)selected.add(INBOXES[i]);
         int subCount=Math.max(0,folders.size()-INBOXES.length);
-        for(int i=0;i<Math.min(12,subCount);i++)
+        for(int i=0;i<Math.min(quick?4:12,subCount);i++)
             selected.add(folders.get(INBOXES.length+(offset+i)%subCount));
         if(subCount>0)prefs.edit().putInt("subfolder_offset",
-            (offset+12)%subCount).apply();
+            (offset+(quick?4:12))%subCount).apply();
         for(String folder:selected){
             if(stop||!scope.equals(index.currentScope()))break;
             try{
                 // Newest-first: early pages cover newly uploaded work.
-                for(int page=1;page<=3;page++){
+                for(int page=1;page<=(quick?1:3);page++){
                     JSONArray rows=cloud.listIncomingPage(folder,page);
                     admitted+=index.ingestIncoming(folder,page,rows);
                     if(rows.length()<FgTeraboxClient.pageSize())break;
@@ -138,7 +139,7 @@ public final class FgRounderOrganizer {
     }
     /** Auto routing is explicit opt-in and applies only deterministic rules. */
     public JSONObject autoRun(Reporter reporter)throws Exception{
-        JSONObject scan=scanIncoming();
+        JSONObject scan=scanIncoming(true);
         if(!autoEnabled()||index.currentGeneration()==0)
             return scan.put("automatic",false);
         JSONObject candidateReview=review();
