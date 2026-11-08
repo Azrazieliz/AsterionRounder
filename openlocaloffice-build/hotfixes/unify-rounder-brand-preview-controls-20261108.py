@@ -131,7 +131,7 @@ css.write_text(c,encoding="utf-8")
 
 # Show a nonblocking, actionable state when the TeraBox range stream stalls.
 m=media.read_text(encoding="utf-8")
-m=one(m,"        player.addListener(new Player.Listener(){",
+m=one(m,"        player.addListener(new Player.Listener(){\n            @Override public void onPlaybackStateChanged(int state){",
 """        final int[] bufferingSequence={0};
         status.setOnClickListener(v->{
             if(closed||player.getPlaybackState()!=Player.STATE_BUFFERING)return;
@@ -145,7 +145,8 @@ m=one(m,"        player.addListener(new Player.Listener(){",
             }
         });
         status.setClickable(false);
-        player.addListener(new Player.Listener(){""","buffer retry")
+        player.addListener(new Player.Listener(){
+            @Override public void onPlaybackStateChanged(int state){""","buffer retry")
 m=one(m,"                if(state==Player.STATE_READY){",
 """                bufferingSequence[0]++;
                 if(state==Player.STATE_READY){
