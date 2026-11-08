@@ -398,6 +398,16 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-classic-restore-20261108.cjs
 
+      - name: Apply compact visual library and image duplicate management
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../hotfixes/apply-rounder-compact-visual-ui-20261108.py
+          python3 -m py_compile ../hotfixes/apply-rounder-compact-visual-ui-20261108.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-compact-visual-ui-20261108.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
