@@ -256,7 +256,7 @@ js=one(js,"search.addEventListener('input',()=>{phrase=search.value;pageStart=0;
 });""",
        "debounced indexed search handler")
 
-js=one(js,"  openCollection:()=>{\n    currentFolder='';stack=[];show();",
+js=one(js," openCollection:()=>{\n   currentFolder='';stack=[];show();",
        """  receiveIndexedSearch,indexProgress,
   openCollection:()=>{
     currentFolder='';stack=[];phrase='';search.value='';
@@ -264,7 +264,7 @@ js=one(js,"  openCollection:()=>{\n    currentFolder='';stack=[];show();",
        "search response bridge")
 
 # Set the correct caption depending on local or cloud browsing.
-js=one(js,"  heading.textContent=cloudMode?'TeraBox':'Your library';",
+js=one(js," heading.textContent=cloudMode?'TeraBox':'Your library';",
        """  heading.textContent=cloudMode?'TeraBox':'Your library';
   search.placeholder=cloudMode?'Search current TeraBox folder':'Search all subfolders';""",
        "contextual search caption")
