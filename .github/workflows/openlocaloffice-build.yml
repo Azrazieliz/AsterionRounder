@@ -418,6 +418,14 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-brand-preview-controls-20261108.cjs
 
+      - name: Guard continuous library scrolling against runaway flings
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-scroll-stability-20261112.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
