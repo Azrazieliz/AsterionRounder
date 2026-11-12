@@ -134,3 +134,12 @@
  .fg-lib-filters{padding:17px 0 20px;gap:7px}
  .fg-lib-filter{padding:8px 12px;font-size:10px;min-height:32px}
 }
+
+/* Virtualized library: card recycling must never move WebView's scroll anchor.
+   In Android Chrome/WebView, changing top/bottom spacers while an anchor
+   points to a recycled card may otherwise accelerate a tiny downward drag. */
+.fg-library-root .fg-lib-body,
+.fg-library-root .fg-lib-grid,
+.fg-library-root .fg-vault-spacer{
+  overflow-anchor:none!important;
+}

@@ -74,6 +74,9 @@ restored=old_style+"\n"+"""/* Asterion Rounder: restored original library UI. Na
 .fg-library-root .fg-vault-update-available{border-color:#d5b087!important;
  color:#e2bd93!important}
 .fg-library-root .fg-vault-folderrail{display:none!important}
+/* Card virtualization must not make the Android WebView scroll anchor chase recycled tiles. */
+.fg-library-root .fg-lib-body{overflow-anchor:none!important}
+.fg-library-root .fg-lib-grid,.fg-library-root .fg-vault-spacer{overflow-anchor:none!important}
 .fg-library-root .fg-vault-spacer{display:block!important;min-height:0!important}
 .fg-library-root .fg-lib-pager,.fg-library-root .fg-lib-page-control{display:none!important}
 .fg-library-root .fg-premium-intro{display:none!important}

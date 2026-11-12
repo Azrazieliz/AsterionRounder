@@ -153,14 +153,17 @@ function showVirtualItems(items,mode,key){
  const origin=virtualTop.getBoundingClientRect().top-
    body.getBoundingClientRect().top+body.scrollTop;
  const relative=Math.max(0,body.scrollTop-origin);
- const firstRow=Math.max(0,Math.min(totalRows,Math.floor(relative/rowHeight)-4));
  const windowRows=Math.max(10,Math.ceil(body.clientHeight/rowHeight)+12);
+ // Never allow the virtual window to run beyond the final row.
+ // Retain actual cards through the end of Android WebView fling gestures.
+ const firstRow=Math.max(0,Math.min(Math.max(0,totalRows-windowRows),
+   Math.floor(relative/rowHeight)-4));
  const endRow=Math.min(totalRows,firstRow+windowRows);
  const start=firstRow*columns;
  const end=Math.min(files.length,endRow*columns);
  virtualTop.style.height=(firstRow*rowHeight)+'px';
  virtualBottom.style.height=((totalRows-endRow)*rowHeight)+'px';
- const signature=mode+'|'+key+'|'+start+'|'+end+'|'+useList+'|'+
+ const signature=mode+'|'+key+'|'+start+'|'+end+'|'+useList+'|'+columns+'|'+rowHeight+'|'+
    files.slice(start,end).map(x=>x.path||x.uri||x.id||x.name).join('\n');
  if(signature===virtualLastSig)return;
  const needed=files.slice(start,end).map((entry,idx)=>{
