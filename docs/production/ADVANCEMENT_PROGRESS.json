@@ -2,8 +2,8 @@
   "schema_version": "1.0.0",
   "project": "Asterion Rounder",
   "repository": "Azrazieliz/AsterionRounder",
-  "active_branch": "fix/asterion-terabox-provider-20261031",
-  "pull_request": 14,
+  "active_branch": "fix/rounder-unified-logo-previews-controls-20261108",
+  "pull_request": 20,
   "baseline_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
   "created_on": "2026-11-01",
   "engineering_states": [
@@ -471,6 +471,46 @@
         "AsterionCore app-specific persistent storage implementation"
       ],
       "next_action": "Keep cross-project boundary; coordinate with AsterionCore source owner only if issue recurs."
+    },
+    {
+      "id": "AR-014",
+      "requirement_ref": "AR-UX-001",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Prevent infinite high-speed scrolling in the continuous library",
+      "engineering_state": "INTEGRATED_UNTESTED",
+      "owner_verdict": {
+        "verdict": "REPORTED_DEFECT",
+        "evidence": "2026-11-12: A slight downward scroll triggers uncontrolled high-speed scrolling and blocks interaction; no post-fix user acceptance yet.",
+        "date": "2026-11-12"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/hotfixes/apply-rounder-continuous-ui-20261108.py",
+          "openlocaloffice-build/hotfixes/restore-rounder-classic-ui-20261108.py",
+          "openlocaloffice-build/additions/premium-library.css",
+          "openlocaloffice-build/hotfixes/test-rounder-scroll-stability-20261112.cjs",
+          ".github/workflows/openlocaloffice-build.yml"
+        ],
+        "head_evidence_commit": "ed141fbf0ec7ef47e8366bc6415d7b73ff04ded7",
+        "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/20"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml",
+        "openlocaloffice-build/hotfixes/test-rounder-scroll-stability-20261112.cjs"
+      ],
+      "verification": {
+        "level": "SOURCE_LEVEL_REGRESSION_ONLY",
+        "evidence": "Static post-assembly guard added to release workflow; 486 numerical virtual-window scenarios passed in tool validation. Actual assembled CI build and physical Android gesture test have not yet been confirmed."
+      },
+      "functional_implementation": "Bound the virtual viewport to retain real cards through the last row, invalidate cards after column/row-height changes, and disable WebView scroll anchoring while top and bottom spacer heights change. No card redesign, no removal of continuous scrolling or source integrations.",
+      "remaining": "Need CI run success and Android device verification across small drags, long flings, TeraBox large folders, local library and indexed search. The exact observed crash path is not yet reproduced on the physical device.",
+      "root_cause": "Probable WebView scroll-anchoring feedback from repeated virtualized spacer/card mutations; this is a code-supported hypothesis pending phone reproduction.",
+      "missing_assets_or_integrations": [],
+      "dependencies": [
+        "PR #20 signed release pipeline",
+        "Android on-device scroll test"
+      ],
+      "next_action": "Check signed CI output, install with preserved app identity and test gentle downward scrolling and long lists on the phone."
     }
   ],
   "change_log": [
@@ -487,6 +527,13 @@
       "task_id": "AR-012",
       "commit": "a898ea9f6440ef587478234426cec570e4c87f42",
       "description": "7-star, 6-star, 5-star, AGENTS, README and execution map committed in a898ea9; reusable read-only resume validator passed with 13 tracked tasks and 91 automation programs; ADB snapshot confirmed v0.15.14 code36, process active, one connected device; no app data changes."
+    },
+    {
+      "date": "2026-11-12",
+      "type": "ENGINEERING_PROGRESS",
+      "task_id": "AR-014",
+      "commit": "ed141fbf0ec7ef47e8366bc6415d7b73ff04ded7",
+      "description": "Bound virtual scrolling and disable WebView anchor feedback; release regression gate included, Android test pending."
     }
   ],
   "open_gaps": [
