@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Add an evidence-based affected-preview filter after the original-image
-thumbnail stage. Never fetch a prohibited TeraBox preview to display a card.
+thumbnail stage. TeraBox previews remain primary; originals only for affected files.
 Keep approved cards, scroll virtualization, identity, readers and files intact.
 """
 from pathlib import Path
@@ -109,6 +109,14 @@ j=j[:start]+"""function createFilters(){
  }
 }
 """ + j[end:]
+# The provider is the primary thumbnail source. Bypass it for affected images
+# (including server-missing URLs) to prevent cached placeholder images from
+# obscuring Rounder's privately generated original-file preview.
+j=once(j,"cover._fgStartCover=()=>loadRemoteCover(image,item.cover,cover);",
+       """cover._fgStartCover=()=>loadRemoteCover(image,item.cover+
+         ((item.previewUnavailable||item.previewManuallyMarked)?
+           (item.cover.includes('?')?'&':'?')+'own=1':''),cover);""",
+       "only affected covers request Rounder fallback")
 # A narrow non-obstructing indicator: approved original tiles and covers stay
 # unmodified. Details explain what evidence was observed.
 j=once(j,
@@ -143,6 +151,7 @@ j=once(j,"function handleAndroidBack(){",'''function previewMarkResult(data){
    for(const item of entries.concat(indexedResults||[]))
      if(item.path===data.path)item.previewManuallyMarked=!!data.marked;
    catalogRevision++;indexedRevision=-1;virtualLastSig='';
+   retainedCards.clear();lastVisibleKeys='';
    if(indexedMode()){
      indexedResults=[];scheduleIndexSearch(0,0);
    }else render();
@@ -167,4 +176,4 @@ css.write_text(css.read_text(encoding="utf-8")+"""
   content:" ●";color:#d5ad7e;font-size:11px;
 }
 """,encoding="utf-8")
-print("ROUNDER_AFFECTED_PREVIEWS_READY: global filter, provider evidence, reviewed placeholders, no cloud mutation")
+print("ROUNDER_AFFECTED_PREVIEWS_READY: provider-first, affected originals, global filter, no cloud mutation")
