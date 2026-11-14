@@ -13,18 +13,22 @@ assert(start>=0&&end>start,'Missing native TeraBox preview route');
 const route=main.slice(start,end);
 required(route,[
   'FgRounderOriginalPreviews','openStill(path)','"image/gif",null,tb().open(path)',
-  'streaming original','fgTbCover(Uri source)'
+  'streaming original','fgTbCover(Uri source)',
+  'tb().openThumbnail(path,folder,page)','fgTbOriginalCover(path,mime)',
+  'fgCloudIndex().isPreviewAffected(path)'
 ],'native original preview');
-assert(!route.includes('openThumbnail('),'Native image card must not depend on blocked TeraBox thumbnail API');
+assert(route.indexOf('tb().openThumbnail(path,folder,page)')<route.indexOf('return fgTbOriginalCover(path,mime)'),
+  'Normal images must prefer TeraBox thumbnails before original fallback');
 const previewStart=main.indexOf('private WebResourceResponse fgTbPreview(Uri source)',start);
 assert(previewStart>start&&previewStart<end,'Existing collection preview route must remain');
 const previewRoute=main.slice(previewStart,end);
 required(previewRoute,[
  'FgRounderOriginalPreviews','openStill(path)',
  '"image/gif".equals(mime)','tb().open(path)',
- 'fgTbPages.get(Integer.parseInt(parts[3]))'
+ 'fgTbPages.get(Integer.parseInt(parts[3]))','tb().openThumbnail(path)'
 ],'original image collection preview');
-assert(!previewRoute.includes('openThumbnail('),'Collection preview cannot use restricted TeraBox thumbnails');
+assert(previewRoute.indexOf('tb().openThumbnail(path)')<previewRoute.indexOf('return fgTbOriginalCover(path,mime)'),
+  'Collection images must prefer provider thumbnails unless affected');
 required(local,[
   'cloud.openRangeStream(path,0)','MAX_ENCODED_BYTES=16*1024*1024',
   'new Semaphore(2,true)','BitmapFactory.decodeByteArray',
@@ -37,6 +41,6 @@ required(main,[
   'new WebResourceResponse("image/gif",null,',
   'low.endsWith(".gif")'
 ],'local / SAF GIF animated preview');
-required(library,["source=original-v1","function card(item,i)","const cover=E('div','fg-lib-cover');"],'original cards retained / stale browser preview invalidation');
+required(library,["source=hybrid-v2","function card(item,i)","const cover=E('div','fg-lib-cover');"],'original cards retained / stale browser preview invalidation');
 required(cloud,['if(low.endsWith(".gif"))return "image/gif";','if(low.endsWith(".bmp"))return "image/bmp";'],'cloud MIME');
-console.log('ROUNDER_ORIGINAL_THUMBNAIL_SOURCE_PASS: independent cloud originals, animated GIFs, private bounded static cache, no card redesign');
+console.log('ROUNDER_ORIGINAL_THUMBNAIL_SOURCE_PASS: provider-first hybrid previews, animated GIF fallback, bounded private cache, unchanged cards');
