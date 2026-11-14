@@ -11,12 +11,17 @@ const start=main.indexOf('private WebResourceResponse fgTbCover(Uri source)');
 const end=main.indexOf('private WebResourceResponse fgTbImage(Uri source)',start);
 assert(start>=0&&end>start,'Missing native TeraBox preview route');
 const route=main.slice(start,end);
+const helperStart=main.indexOf('private WebResourceResponse fgTbOriginalCover(String path,String mime)');
+assert(helperStart>=0&&helperStart<start,'Original-byte fallback helper must be retained');
+const helper=main.slice(helperStart,start);
+required(helper,[
+  'FgRounderOriginalPreviews','openStill(path)',
+  '"image/gif",null,tb().open(path)','streaming original'
+],'original-byte fallback helper');
 required(route,[
-  'FgRounderOriginalPreviews','openStill(path)','"image/gif",null,tb().open(path)',
-  'streaming original','fgTbCover(Uri source)',
-  'tb().openThumbnail(path,folder,page)','fgTbOriginalCover(path,mime)',
-  'fgCloudIndex().isPreviewAffected(path)'
-],'native original preview');
+  'fgTbCover(Uri source)','tb().openThumbnail(path,folder,page)',
+  'fgTbOriginalCover(path,mime)','fgCloudIndex().isPreviewAffected(path)'
+],'native hybrid preview');
 assert(route.indexOf('tb().openThumbnail(path,folder,page)')<route.indexOf('return fgTbOriginalCover(path,mime)'),
   'Normal images must prefer TeraBox thumbnails before original fallback');
 const previewStart=main.indexOf('private WebResourceResponse fgTbPreview(Uri source)',start);
