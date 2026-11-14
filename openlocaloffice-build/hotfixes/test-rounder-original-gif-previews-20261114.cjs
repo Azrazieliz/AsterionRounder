@@ -16,6 +16,15 @@ required(route,[
   'streaming original','fgTbCover(Uri source)'
 ],'native original preview');
 assert(!route.includes('openThumbnail('),'Native image card must not depend on blocked TeraBox thumbnail API');
+const previewStart=main.indexOf('private WebResourceResponse fgTbPreview(Uri source)',start);
+assert(previewStart>start&&previewStart<end,'Existing collection preview route must remain');
+const previewRoute=main.slice(previewStart,end);
+required(previewRoute,[
+ 'FgRounderOriginalPreviews','openStill(path)',
+ '"image/gif".equals(mime)','tb().open(path)',
+ 'fgTbPages.get(Integer.parseInt(parts[3]))'
+],'original image collection preview');
+assert(!previewRoute.includes('openThumbnail('),'Collection preview cannot use restricted TeraBox thumbnails');
 required(local,[
   'cloud.openRangeStream(path,0)','MAX_ENCODED_BYTES=16*1024*1024',
   'new Semaphore(2,true)','BitmapFactory.decodeByteArray',
