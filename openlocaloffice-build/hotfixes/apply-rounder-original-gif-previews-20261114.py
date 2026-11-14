@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Route Rounder cloud covers through original-file reads, not TeraBox previews.
+"""Prefer TeraBox thumbnails, falling back to originals for affected images.
 
 Applied after all older library / brand fixes. Existing card DOM/CSS, download
 rights, TeraBox account and reader interfaces remain unchanged.
@@ -14,7 +14,23 @@ start=code.index("    private WebResourceResponse fgTbCover(Uri source){")
 end=code.index("    private WebResourceResponse fgTbImage(Uri source){",start)
 old=code[start:end]
 assert "openThumbnail(path,folder,page)" in old
-replacement=r'''    private WebResourceResponse fgTbCover(Uri source){
+replacement=r'''    /** Rounder's authenticated original-image fallback; never uses TeraBox /thumbs. */
+    private WebResourceResponse fgTbOriginalCover(String path,String mime)throws Exception{
+        if("image/gif".equals(mime))
+            return new WebResourceResponse("image/gif",null,tb().open(path));
+        try{
+            return new WebResourceResponse("image/jpeg",null,
+                new com.openlocal.office.core.FgRounderOriginalPreviews(
+                    MainActivity.this,tb()).openStill(path));
+        }catch(Exception boundedDecodeError){
+            android.util.Log.i("FG_ORIGINAL_PREVIEW",
+                "Bounded preview unavailable; streaming original "+
+                boundedDecodeError.getClass().getSimpleName());
+            return new WebResourceResponse(mime,null,tb().open(path));
+        }
+    }
+    /** Prefer genuine TeraBox thumbnails; use our own only for affected originals. */
+    private WebResourceResponse fgTbCover(Uri source){
         String id=source.getLastPathSegment();
         if(id==null||id.length()>8192)return new WebResourceResponse(
             "image/jpeg",null,new ByteArrayInputStream(new byte[0]));
@@ -27,61 +43,58 @@ replacement=r'''    private WebResourceResponse fgTbCover(Uri source){
                 android.util.Base64.URL_SAFE|android.util.Base64.NO_WRAP|
                 android.util.Base64.NO_PADDING),java.nio.charset.StandardCharsets.UTF_8);
             if(!path.startsWith("/")||!com.openlocal.office.core.FgTeraboxClient.image(path))
-                throw new IOException("Invalid original image path");
-            // Direct, authenticated original GIF bytes retain native animation.
-            // These are lazy visible-card requests, not background cloud downloads.
+                throw new IOException("Invalid cloud cover path");
             String mime=com.openlocal.office.core.FgTeraboxClient.mime(path);
-            if("image/gif".equals(mime))
-                return new WebResourceResponse("image/gif",null,tb().open(path));
-            // Static thumbnail pixels are decoded locally from ORIGINAL file data.
-            // Never ask /thumbs or a provider-shared preview URL for this route.
-            try{
-                return new WebResourceResponse("image/jpeg",null,
-                    new com.openlocal.office.core.FgRounderOriginalPreviews(
-                        MainActivity.this,tb()).openStill(path));
-            }catch(Exception boundedDecodeError){
-                android.util.Log.i("FG_ORIGINAL_PREVIEW",
-                    "Bounded still preview unavailable; streaming original "+
-                    boundedDecodeError.getClass().getSimpleName());
-                // A valid very large or uncommon image may exceed thumbnail
-                // budget: let WebView decode its authenticated ORIGINAL stream.
-                return new WebResourceResponse(mime,null,tb().open(path));
+            boolean affected="1".equals(source.getQueryParameter("own"))||
+                fgCloudIndex().isPreviewAffected(path);
+            if(!affected){
+                try{
+                    int slash=path.lastIndexOf('/');
+                    String folder=path.substring(0,slash);
+                    return new WebResourceResponse("image/jpeg",null,
+                        tb().openThumbnail(path,folder,page));
+                }catch(Exception providerError){
+                    android.util.Log.i("FG_ORIGINAL_PREVIEW",
+                        "TeraBox thumbnail unavailable; using original "+
+                        providerError.getClass().getSimpleName());
+                }
             }
-        }catch(Exception problem){
+            return fgTbOriginalCover(path,mime);
+        }catch(Exception error){
             android.util.Log.w("FG_ORIGINAL_PREVIEW",
-                "Original image preview unavailable: "+
-                problem.getClass().getSimpleName());
+                "Hybrid image cover unavailable: "+error.getClass().getSimpleName());
             return new WebResourceResponse("image/jpeg",null,
                 new ByteArrayInputStream(new byte[0]));
         }
     }
 '''
-# Keep the image collection's existing /terabox-preview/session/index route.
-# The earlier reader repair inserted fgTbPreview between fgTbCover and fgTbImage;
-# replacing the entire region had inadvertently removed that native method.
-# Both endpoints must decode authenticated original data, never call /thumbs.
+# Retain the authenticated image-collection preview route and its session checks.
 preview=r'''    private WebResourceResponse fgTbPreview(Uri source){
         try{
             String[] parts=source.getPath().split("/");
             if(parts.length!=4||!parts[2].equals(fgTbToken))
                 throw new IOException("Invalid cloud preview session");
             TbPage item=fgTbPages.get(Integer.parseInt(parts[3]));
-            if(item==null)throw new IOException("Preview is not in the current collection");
+            if(item==null)throw new IOException("Preview is not in this collection");
             String path=item.path;
             String mime=com.openlocal.office.core.FgTeraboxClient.mime(item.name);
-            if("image/gif".equals(mime))
-                return new WebResourceResponse(mime,null,tb().open(path));
-            try{
-                return new WebResourceResponse("image/jpeg",null,
-                    new com.openlocal.office.core.FgRounderOriginalPreviews(
-                        MainActivity.this,tb()).openStill(path));
-            }catch(Exception budgetError){
-                return new WebResourceResponse(mime,null,tb().open(path));
+            boolean affected="1".equals(source.getQueryParameter("own"))||
+                fgCloudIndex().isPreviewAffected(path);
+            if(!affected){
+                try{
+                    return new WebResourceResponse("image/jpeg",null,
+                        tb().openThumbnail(path));
+                }catch(Exception providerError){
+                    android.util.Log.i("FG_ORIGINAL_PREVIEW",
+                        "TeraBox collection preview unavailable; using original "+
+                        providerError.getClass().getSimpleName());
+                }
             }
-        }catch(Exception problem){
+            return fgTbOriginalCover(path,mime);
+        }catch(Exception error){
             android.util.Log.w("FG_ORIGINAL_PREVIEW",
-                "Collection image preview unavailable: "+
-                problem.getClass().getSimpleName());
+                "Hybrid collection preview unavailable: "+
+                error.getClass().getSimpleName());
             return new WebResourceResponse("image/jpeg",null,
                 new ByteArrayInputStream(new byte[0]));
         }
@@ -124,6 +137,6 @@ js=lib.read_text(encoding="utf-8")
 needle="job.image.src=job.url;"
 assert js.count(needle)==1,("Expected remote cover assignment",js.count(needle))
 js=js.replace(needle,
-    "job.image.src=job.url+(job.url.includes('?')?'&':'?')+'source=original-v1';",1)
+    "job.image.src=job.url+(job.url.includes('?')?'&':'?')+'source=hybrid-v2';",1)
 lib.write_text(js,encoding="utf-8")
-print("ROUNDER_ORIGINAL_CLOUD_PREVIEWS_OK: static originals locally decoded, GIFs streamed animated, cache scoped")
+print("ROUNDER_HYBRID_CLOUD_PREVIEWS_OK: provider first, affected originals fallback, GIF when affected")
