@@ -123,18 +123,17 @@ j=once(j,
     "visible item issue status")
 # No cloud file is altered; only a private account/path marker changes.
 start=j.index("function showFileActions(item){")
-end=j.index("  const kind=classify(item);",start)
-part=j[start:end]
-part=once(part,"    fileAction(sheet,'Close','',closeFileActions);",
-"""    if(!item.folder&&classify(item)==='image')
+terabox=j.index("if(item.terabox){",start)
+close=j.index("fileAction(sheet,'Close','',closeFileActions);",terabox)
+# Place the reviewed flag beside the existing native cloud-file actions.
+# Do not rebuild the sheet, modify its other commands, or touch local files.
+j=j[:close]+"""if(!item.folder&&classify(item)==='image')
       fileAction(sheet,item.previewManuallyMarked?
           'Remove affected-preview flag':'Flag affected preview',
         'Use when TeraBox substitutes a placeholder despite providing a preview URL. Only private Rounder metadata changes.',
         ()=>{closeFileActions();bridge()?.markTeraboxPreview?.(
             item.path,!item.previewManuallyMarked);});
-    fileAction(sheet,'Close','',closeFileActions);""",
-    "owner confirmation in existing file actions")
-j=j[:start]+part+j[end:]
+    """+j[close:]
 # Native acknowledgement, not optimistic UI state: on failure show an error,
 # on success reconcile the current folder and global indexed results.
 j=once(j,"function handleAndroidBack(){",'''function previewMarkResult(data){
