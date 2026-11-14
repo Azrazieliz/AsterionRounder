@@ -56,9 +56,9 @@ required(ui,[
   'if(!data||data.scope!==bridge()?.getTeraboxSearchScope?.())return;',
   'previewMarkResult,',
   'scheduleIndexSearch(0,0)',
-  "'item.previewUnavailable||item.previewManuallyMarked'", 
-  "'own=1'", 
-  "'retainedCards.clear();lastVisibleKeys='"
+  'item.previewUnavailable||item.previewManuallyMarked',
+  'own=1',
+  "retainedCards.clear();lastVisibleKeys='"
 ],'existing Rounder library filter');
 required(thumbnails,[
   'cloud.openRangeStream(path,0)',
