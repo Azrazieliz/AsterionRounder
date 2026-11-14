@@ -147,4 +147,11 @@ j=once(j,"window.FileGestionerLibrary={",
        "window.FileGestionerLibrary={\n previewMarkResult,",
        "expose callback")
 lib.write_text(j,encoding="utf-8")
+css=root/"assets/style.css"
+css.write_text(css.read_text(encoding="utf-8")+"""
+/* One unobtrusive status dot; preserve existing card geometry and cover art. */
+.fg-library-root .fg-preview-affected .fg-lib-item-title::after {
+  content:" ●";color:#d5ad7e;font-size:11px;
+}
+""",encoding="utf-8")
 print("ROUNDER_AFFECTED_PREVIEWS_READY: global filter, provider evidence, reviewed placeholders, no cloud mutation")
