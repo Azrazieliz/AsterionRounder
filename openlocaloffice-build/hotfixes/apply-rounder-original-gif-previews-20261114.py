@@ -56,7 +56,39 @@ replacement=r'''    private WebResourceResponse fgTbCover(Uri source){
         }
     }
 '''
-code=code[:start]+replacement+code[end:]
+# Keep the image collection's existing /terabox-preview/session/index route.
+# The earlier reader repair inserted fgTbPreview between fgTbCover and fgTbImage;
+# replacing the entire region had inadvertently removed that native method.
+# Both endpoints must decode authenticated original data, never call /thumbs.
+preview=r'''    private WebResourceResponse fgTbPreview(Uri source){
+        try{
+            String[] parts=source.getPath().split("/");
+            if(parts.length!=4||!parts[2].equals(fgTbToken))
+                throw new IOException("Invalid cloud preview session");
+            TbPage item=fgTbPages.get(Integer.parseInt(parts[3]));
+            if(item==null)throw new IOException("Preview is not in the current collection");
+            String path=item.path;
+            String mime=com.openlocal.office.core.FgTeraboxClient.mime(item.name);
+            if("image/gif".equals(mime))
+                return new WebResourceResponse(mime,null,tb().open(path));
+            try{
+                return new WebResourceResponse("image/jpeg",null,
+                    new com.openlocal.office.core.FgRounderOriginalPreviews(
+                        MainActivity.this,tb()).openStill(path));
+            }catch(Exception budgetError){
+                return new WebResourceResponse(mime,null,tb().open(path));
+            }
+        }catch(Exception problem){
+            android.util.Log.w("FG_ORIGINAL_PREVIEW",
+                "Collection image preview unavailable: "+
+                problem.getClass().getSimpleName());
+            return new WebResourceResponse("image/jpeg",null,
+                new ByteArrayInputStream(new byte[0]));
+        }
+    }
+'''
+assert "private WebResourceResponse fgTbPreview(Uri source)" in old, "Expected legacy reader preview to be present before replacement"
+code=code[:start]+replacement+preview+code[end:]
 # SAF-based local / cloud DocumentsProvider library also supports GIF covers.
 # This does NOT affect the actual reader, only its thumbnail URL.
 anchor='''                            return new WebResourceResponse("image/jpeg",null,
