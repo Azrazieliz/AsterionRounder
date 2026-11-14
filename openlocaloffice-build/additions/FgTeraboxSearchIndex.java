@@ -398,6 +398,22 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         }finally{db.endTransaction();}
         return touched;
     }
+    /** Keep user-reviewed placeholder flags private and scoped to this account. */
+    public void markPreview(String path,boolean affected)throws Exception{
+        String scope=connectedScope();
+        if(scope.isEmpty()||path==null||path.length()>8192||
+           !path.startsWith("/")||path.contains("\\")||
+           path.contains("/../")||path.endsWith("/..")||
+           !FgTeraboxClient.image(path))
+            throw new java.io.IOException("Invalid preview flag target");
+        SQLiteDatabase db=getWritableDatabase();
+        if(affected)db.execSQL(
+            "INSERT OR REPLACE INTO preview_marks(scope,path,marked) VALUES(?,?,1)",
+            new Object[]{scope,path});
+        else db.execSQL(
+            "DELETE FROM preview_marks WHERE scope=? AND path=?",
+            new Object[]{scope,path});
+    }
     /** Metadata snapshot, never opens file contents. */
     public SQLiteDatabase metadata(){return getReadableDatabase();}
     public String currentScope(){return connectedScope();}
@@ -413,6 +429,9 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         getWritableDatabase().execSQL(
             "DELETE FROM objects WHERE scope=? AND path=?",
             new Object[]{expectedScope,oldPath});
+        getWritableDatabase().execSQL(
+            "DELETE FROM preview_marks WHERE scope=? AND path=?",
+            new Object[]{expectedScope,oldPath});
     }
     public void noteMoved(String expectedScope,String oldPath,String newPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
@@ -421,12 +440,17 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         if(parent.isEmpty())parent="/";
         db.execSQL("UPDATE objects SET path=?,parent=? WHERE scope=? AND path=?",
             new Object[]{newPath,parent,expectedScope,oldPath});
+        db.execSQL("INSERT OR REPLACE INTO preview_marks(scope,path,marked) SELECT scope,?,marked FROM preview_marks WHERE scope=? AND path=?",
+            new Object[]{newPath,expectedScope,oldPath});
+        db.execSQL("DELETE FROM preview_marks WHERE scope=? AND path=?",
+            new Object[]{expectedScope,oldPath});
     }
     public void clear(){
         try{
             SQLiteDatabase db=getWritableDatabase();
             db.execSQL("DELETE FROM objects");db.execSQL("DELETE FROM pending");
             db.execSQL("DELETE FROM accounts");
+            db.execSQL("DELETE FROM preview_marks");
         }catch(Exception ignored){}
     }
 }
