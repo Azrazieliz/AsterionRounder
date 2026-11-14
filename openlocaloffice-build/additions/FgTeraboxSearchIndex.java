@@ -257,15 +257,19 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     .put("error",s.error).put("offset",Math.max(0,offset));
                 JSONArray results=new JSONArray();
                 boolean more=false;
-                if(!scope.isEmpty()&&gen>0&&text!=null&&!text.trim().isEmpty()){
+                boolean affected="affected".equals(category);
+                if(!scope.isEmpty()&&gen>0&&text!=null&&
+                   (!text.trim().isEmpty()||affected)){
                     ArrayList<String> params=new ArrayList<>();
-                    String sql="SELECT path,name,kind,folder,size,modified,parent,listing_page FROM objects WHERE scope=? AND generation=? AND needle LIKE ? ESCAPE '\\'";
+                    String sql="SELECT o.path,o.name,o.kind,o.folder,o.size,o.modified,o.parent,o.listing_page,o.preview_missing,COALESCE(mark.marked,0) FROM objects o LEFT JOIN preview_marks mark ON mark.scope=o.scope AND mark.path=o.path WHERE o.scope=? AND o.generation=? AND o.needle LIKE ? ESCAPE '\\'";
                     params.add(scope);params.add(Integer.toString(gen));
                     params.add("%"+escapeLike(text.trim().toLowerCase(Locale.ROOT))+"%");
-                    if(category!=null&&!category.isEmpty()&&!category.equals("all")){
-                        sql+=" AND kind=?";params.add(category);
+                    if(affected){
+                        sql+=" AND o.kind='image' AND (o.preview_missing=1 OR COALESCE(mark.marked,0)=1)";
+                    }else if(category!=null&&!category.isEmpty()&&!category.equals("all")){
+                        sql+=" AND o.kind=?";params.add(category);
                     }
-                    sql+=" ORDER BY needle,path LIMIT ? OFFSET ?";
+                    sql+=" ORDER BY o.needle,o.path LIMIT ? OFFSET ?";
                     params.add(Integer.toString(LIMIT+1));
                     params.add(Integer.toString(Math.max(0,offset)));
                     try(Cursor cursor=getReadableDatabase().rawQuery(sql,params.toArray(new String[0]))){
@@ -283,8 +287,12 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                                 .put("terabox",true).put("indexedSearch",true)
                                 .put("uri","fgterabox://file/"+Uri.encode(path));
                             if("image".equals(cursor.getString(2))){
+                                boolean missing=cursor.getInt(8)!=0;
+                                boolean manual=cursor.getInt(9)!=0;
                                 item.put("cover",coverUrl(path,cursor.getInt(7)))
-                                    .put("remoteCover",true);
+                                    .put("remoteCover",true)
+                                    .put("previewUnavailable",missing)
+                                    .put("previewManuallyMarked",manual);
                             }
                             results.put(item);
                         }
