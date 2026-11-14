@@ -77,8 +77,9 @@ assert(cover.includes('fgCloudIndex().isPreviewAffected(path)'),
   'Affected images must bypass TeraBox preview');
 assert(cover.includes('return fgTbOriginalCover(path,mime)'),
   'Unusable provider thumbnails must fall back to original image');
-assert(cover.includes('openStill(path)'),'Static previews must decode original bytes');
-assert(cover.includes('"image/gif",null,tb().open(path)'),'GIF previews must retain animation');
+const helper= native.slice(native.indexOf('private WebResourceResponse fgTbOriginalCover(String path,String mime)'),start);
+assert(helper.includes('openStill(path)'),'Static fallback previews must decode original bytes');
+assert(helper.includes('"image/gif",null,tb().open(path)'),'Affected GIF previews must retain animation');
 assert(!ui.includes('function classifyByImageContent'), 'No speculative content labeling');
 assert(index.includes('LEFT JOIN preview_marks mark'), 'Owner flags must survive search index queries');
 assert(index.includes('scope=?'), 'Account-scope isolation required');
