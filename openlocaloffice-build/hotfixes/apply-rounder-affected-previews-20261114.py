@@ -78,23 +78,37 @@ j=once(j,"function cloudIndexedMode(){return cloudMode&&!!phrase.trim();}",
 j=once(j,"for(const [key,name] of categories){",
        "for(const [key,name] of categories){\n    if(key==='affected'&&!cloudMode)continue;",
        "TeraBox-only category")
-j=once(j,
-"""     ()=>{filter=key;pageStart=0;createFilters();
-       if(localIndexedMode()){indexedResults=[];scheduleIndexSearch(0,0);}
-       render();});""",
-"""     ()=>{
+# Keep the approved filter row, and use one indexed-result path for both
+# normal search and the newly added affected-preview category.
+start=j.index("function createFilters(){")
+end=j.index("function request(){",start)
+original=j[start:end]
+assert "filters.replaceChildren();" in original
+assert "const control=b(name,'fg-lib-filter'" in original
+assert "filters.append(control);" in original
+j=j[:start]+"""function createFilters(){
+ filters.replaceChildren();
+ for(const [key,name] of categories){
+   if(key==='affected'&&!cloudMode)continue;
+   const control=b(name,'fg-lib-filter'+(filter===key?' fg-lib-selected':''),
+     ()=>{
        const wasAffected=filter==='affected';
        filter=key;pageStart=0;createFilters();
        if(indexedMode()){
          if(cloudMode&&!wasAffected&&filter==='affected')
            bridge()?.stopTeraboxListing?.();
          indexedResults=[];indexedMore=false;indexedError='';
-         scheduleIndexSearch(0,0);render();
+         scheduleIndexSearch(0,0);
+         render();
        }else if(cloudMode&&wasAffected&&!phrase.trim()){
-         indexedToken++;request();
+         indexedToken++;
+         request();
        }else render();
-     });""",
-       "indexed category transition")
+     });
+   filters.append(control);
+ }
+}
+""" + j[end:]
 # A narrow non-obstructing indicator: approved original tiles and covers stay
 # unmodified. Details explain what evidence was observed.
 j=once(j,
