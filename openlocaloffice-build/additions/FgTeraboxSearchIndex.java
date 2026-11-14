@@ -398,6 +398,30 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         }finally{db.endTransaction();}
         return touched;
     }
+    /** One private indexed lookup per page, never one SQLite query per image. */
+    public java.util.Set<String> markedForPage(JSONArray page){
+        java.util.Set<String> marked=new java.util.HashSet<>();
+        String scope=connectedScope();
+        if(scope.isEmpty()||page==null||page.length()==0)return marked;
+        java.util.ArrayList<String> args=new java.util.ArrayList<>();
+        args.add(scope);
+        StringBuilder sql=new StringBuilder(
+            "SELECT path FROM preview_marks WHERE scope=? AND path IN (");
+        for(int i=0;i<page.length()&&i<100;i++){
+            JSONObject row=page.optJSONObject(i);
+            String path=row==null?"":row.optString("path","");
+            if(!path.startsWith("/")||!FgTeraboxClient.image(path))continue;
+            if(args.size()>1)sql.append(',');
+            sql.append('?');args.add(path);
+        }
+        if(args.size()==1)return marked;
+        sql.append(')');
+        try(Cursor rows=getReadableDatabase().rawQuery(
+                sql.toString(),args.toArray(new String[0]))){
+            while(rows.moveToNext())marked.add(rows.getString(0));
+        }
+        return marked;
+    }
     /** Keep user-reviewed placeholder flags private and scoped to this account. */
     public void markPreview(String path,boolean affected)throws Exception{
         String scope=connectedScope();
