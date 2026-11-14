@@ -36,19 +36,21 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
     private volatile long lastProgressMs=0;
 
     public FgTeraboxSearchIndex(Context context,FgTeraboxClient cloud,Listener listener) {
-        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,2);
+        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,3);
         this.cloud=cloud;
         this.listener=listener;
         setWriteAheadLoggingEnabled(true);
     }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE accounts (scope TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 0, building INTEGER NOT NULL DEFAULT 0, indexed INTEGER NOT NULL DEFAULT 0, error TEXT)");
-        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, checksum TEXT, listing_page INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,generation,path))");
+        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, checksum TEXT, listing_page INTEGER NOT NULL DEFAULT 1, preview_missing INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(scope,generation,path))");
         db.execSQL("CREATE INDEX objects_lookup ON objects(scope,generation,needle)");
         db.execSQL("CREATE INDEX objects_type ON objects(scope,generation,kind)");
         db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
         db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
         db.execSQL("CREATE TABLE pending (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, page INTEGER NOT NULL, PRIMARY KEY(scope,generation,path))");
+        db.execSQL("CREATE INDEX objects_preview ON objects(scope,generation,kind,preview_missing)");
+        db.execSQL("CREATE TABLE preview_marks (scope TEXT NOT NULL, path TEXT NOT NULL, marked INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,path))");
     }
     @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion){
         if(oldVersion<2){
