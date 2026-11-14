@@ -12,7 +12,7 @@ on:
 
 # Only the newest commit on a PR consumes the Android emulator.
 concurrency:
-  group: rounder-preserve-existing-cards-v23-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: rounder-hybrid-preview-v1-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -425,6 +425,28 @@ jobs:
           set -euo pipefail
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-scroll-stability-20261112.cjs
+
+      - name: Generate image previews from authenticated originals, including animated GIFs
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderOriginalPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderOriginalPreviews.java
+          python3 -m py_compile ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+
+      - name: Index and filter affected TeraBox previews without provider thumbnail dependency
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-affected-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-affected-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+          node ../hotfixes/test-rounder-affected-previews-20261114.cjs
 
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project

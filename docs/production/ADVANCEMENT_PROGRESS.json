@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "project": "Asterion Rounder",
   "repository": "Azrazieliz/AsterionRounder",
-  "active_branch": "fix/rounder-unified-logo-previews-controls-20261108",
+  "active_branch": "fix/rounder-terabox-gif-thumbnail-recovery-20261114",
   "pull_request": 20,
   "baseline_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
   "created_on": "2026-11-01",
@@ -511,6 +511,48 @@
         "Android on-device scroll test"
       ],
       "next_action": "Check signed CI output, install with preserved app identity and test gentle downward scrolling and long lists on the phone."
+    },
+    {
+      "id": "AR-015",
+      "requirement_ref": "AR-PREV-011",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Generate original-file thumbnails and identify affected TeraBox previews",
+      "engineering_state": "SOURCE_PRESENT",
+      "owner_verdict": {
+        "verdict": "AWAITING_USER_TEST",
+        "evidence": "No signed APK built or physically installed from this source branch.",
+        "date": "2026-11-14"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/FgRounderOriginalPreviews.java",
+          "openlocaloffice-build/additions/FgTeraboxClient.java",
+          "openlocaloffice-build/additions/FgTeraboxSearchIndex.java",
+          "openlocaloffice-build/hotfixes/apply-rounder-original-gif-previews-20261114.py",
+          "openlocaloffice-build/hotfixes/apply-rounder-affected-previews-20261114.py",
+          ".github/workflows/openlocaloffice-build.yml"
+        ],
+        "branch": "fix/rounder-terabox-gif-thumbnail-recovery-20261114"
+      },
+      "automation": [
+        "openlocaloffice-build/hotfixes/test-rounder-original-gif-previews-20261114.cjs",
+        "openlocaloffice-build/hotfixes/test-rounder-affected-previews-20261114.cjs"
+      ],
+      "verification": {
+        "level": "SOURCE_CONTRACT_ADDED_NOT_EXECUTED",
+        "evidence": "Static repository inspection confirms source and workflow wiring; compilation, Android playback and account-specific cloud previews remain unverified."
+      },
+      "functional_implementation": "Account-scoped metadata index distinguishes unavailable TeraBox preview URLs from manually reviewed substituted placeholders. Visible cards use original-byte-generated still thumbnails and animated GIF streams; no cloud files altered.",
+      "remaining": "Execute source/CI checks, confirm original JPEG/PNG/GIF covers, flag persistence, account isolation, 300K index progress and scroll stability on a real Android device.",
+      "root_cause": "TeraBox preview URL presence alone does not prove whether returned visual content is a policy placeholder.",
+      "missing_assets_or_integrations": [
+        "Authenticated device-level TeraBox session and representative restricted/placeholder image for acceptance testing"
+      ],
+      "dependencies": [
+        "AR-006",
+        "AR-014"
+      ],
+      "next_action": "After explicit build approval, assemble with existing signing identity, run regression gates and perform non-destructive on-device acceptance. Do not auto-delete, move or upload anything."
     }
   ],
   "change_log": [
@@ -540,5 +582,7 @@
     "Complete legacy requirements are distributed across Git history, tracked patch sets, owner screenshots and PR #14; no prior comprehensive 7★ master was tracked.",
     "GitHub CI emulator boot failure: runtime smoke never executed on run #486.",
     "Native Koikatsu Android integration not automatically assumed; owner will return with test results."
-  ]
+  ],
+  "latest_source_branch": "fix/rounder-terabox-gif-thumbnail-recovery-20261114",
+  "latest_source_note": "2026-11-14 original TeraBox thumbnails and affected previews source only; prior PR #20 remains open at its older head."
 }
