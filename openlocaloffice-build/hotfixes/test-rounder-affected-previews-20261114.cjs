@@ -28,6 +28,7 @@ required(index,[
   'FgTeraboxClient.previewUnavailable(raw)?1:0',
   'public java.util.Set<String> markedForPage(JSONArray page)',
   'public void markPreview(String path,boolean affected)',
+  'public boolean isPreviewAffected(String path)',
   'DELETE FROM preview_marks WHERE scope<>?',
   'DELETE FROM preview_marks WHERE scope=? AND path=?',
   'boolean affected="affected".equals(category)',
@@ -54,7 +55,10 @@ required(ui,[
   'function previewMarkResult(data){',
   'if(!data||data.scope!==bridge()?.getTeraboxSearchScope?.())return;',
   'previewMarkResult,',
-  'scheduleIndexSearch(0,0)'
+  'scheduleIndexSearch(0,0)',
+  "'item.previewUnavailable||item.previewManuallyMarked'", 
+  "'own=1'", 
+  "'retainedCards.clear();lastVisibleKeys='"
 ],'existing Rounder library filter');
 required(thumbnails,[
   'cloud.openRangeStream(path,0)',
@@ -67,10 +71,15 @@ const start=native.indexOf('private WebResourceResponse fgTbCover(Uri source)');
 const end=native.indexOf('private WebResourceResponse fgTbImage(Uri source)',start);
 assert(start>=0&&end>start,'Original image card route missing');
 const cover=native.slice(start,end);
-assert(!cover.includes('openThumbnail('),'Visible covers may not use TeraBox restricted-preview API');
+assert(cover.includes('tb().openThumbnail(path,folder,page)'),
+  'Non-affected images must use TeraBox thumbnails');
+assert(cover.includes('fgCloudIndex().isPreviewAffected(path)'),
+  'Affected images must bypass TeraBox preview');
+assert(cover.includes('return fgTbOriginalCover(path,mime)'),
+  'Unusable provider thumbnails must fall back to original image');
 assert(cover.includes('openStill(path)'),'Static previews must decode original bytes');
 assert(cover.includes('"image/gif",null,tb().open(path)'),'GIF previews must retain animation');
 assert(!ui.includes('function classifyByImageContent'), 'No speculative content labeling');
 assert(index.includes('LEFT JOIN preview_marks mark'), 'Owner flags must survive search index queries');
 assert(index.includes('scope=?'), 'Account-scope isolation required');
-console.log('ROUNDER_AFFECTED_PREVIEW_PASS: original-file thumbnails, metadata-based filter, reviewed placeholders, account separation, GIF support');
+console.log('ROUNDER_AFFECTED_PREVIEW_PASS: provider-first thumbnails, affected-original fallback, account-specific filter, GIF support');
