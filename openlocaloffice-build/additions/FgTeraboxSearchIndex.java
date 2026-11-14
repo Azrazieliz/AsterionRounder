@@ -63,6 +63,11 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE objects ADD COLUMN preview_missing INTEGER NOT NULL DEFAULT 0");
             db.execSQL("CREATE INDEX objects_preview ON objects(scope,generation,kind,preview_missing)");
             db.execSQL("CREATE TABLE IF NOT EXISTS preview_marks (scope TEXT NOT NULL, path TEXT NOT NULL, marked INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,path))");
+            // Old indexed rows lack preview metadata: rebuild once from listing
+            // metadata only. No cloud files are opened or modified.
+            db.execSQL("DELETE FROM objects");
+            db.execSQL("DELETE FROM pending");
+            db.execSQL("UPDATE accounts SET active=0,building=0,indexed=0,error=NULL");
         }
     }
     private static final class State {
