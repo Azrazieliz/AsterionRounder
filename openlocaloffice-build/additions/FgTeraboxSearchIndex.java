@@ -59,6 +59,11 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
             db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
         }
+        if(oldVersion<3){
+            db.execSQL("ALTER TABLE objects ADD COLUMN preview_missing INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("CREATE INDEX objects_preview ON objects(scope,generation,kind,preview_missing)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS preview_marks (scope TEXT NOT NULL, path TEXT NOT NULL, marked INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,path))");
+        }
     }
     private static final class State {
         int active,building;
@@ -118,6 +123,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.execSQL("DELETE FROM objects WHERE scope<>?",new Object[]{scope});
             db.execSQL("DELETE FROM pending WHERE scope<>?",new Object[]{scope});
             db.execSQL("DELETE FROM accounts WHERE scope<>?",new Object[]{scope});
+            db.execSQL("DELETE FROM preview_marks WHERE scope<>?",new Object[]{scope});
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
         State s=state(db,scope);
@@ -164,7 +170,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         db.beginTransactionNonExclusive();
         try{
             SQLiteStatement put=db.compileStatement(
-                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page,preview_missing) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)");
             SQLiteStatement queue=db.compileStatement(
                 "INSERT OR IGNORE INTO pending(scope,generation,path,page) VALUES(?,?,?,1)");
             int admitted=0;
@@ -200,6 +206,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     if(digest.matches("[0-9a-f]{32}"))put.bindString(11,digest);
                     else put.bindNull(11);
                     put.bindLong(12,task.page);
+                    put.bindLong(13,FgTeraboxClient.previewUnavailable(raw)?1:0);
                     put.executeInsert();
                     admitted++;
                     if(folder){
@@ -348,7 +355,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         db.beginTransactionNonExclusive();
         try{
             SQLiteStatement put=db.compileStatement(
-                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page,preview_missing) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)");
             try{
                 for(int i=0;i<listing.length();i++){
                     JSONObject raw=listing.optJSONObject(i);
@@ -374,6 +381,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     if(checksum.matches("[0-9a-f]{32}"))put.bindString(11,checksum);
                     else put.bindNull(11);
                     put.bindLong(12,page);
+                    put.bindLong(13,FgTeraboxClient.previewUnavailable(raw)?1:0);
                     put.executeInsert();
                     touched++;
                 }
