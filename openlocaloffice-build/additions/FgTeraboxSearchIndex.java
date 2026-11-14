@@ -427,6 +427,32 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         }
         return marked;
     }
+    /** Fast indexed check for missing or manually reviewed provider previews. */
+    public boolean isPreviewAffected(String path){
+        String scope=connectedScope();
+        if(scope.isEmpty()||path==null||!path.startsWith("/")||
+           !FgTeraboxClient.image(path))return false;
+        try{
+            SQLiteDatabase db=getReadableDatabase();
+            try(Cursor manual=db.rawQuery(
+                    "SELECT 1 FROM preview_marks WHERE scope=? AND path=? LIMIT 1",
+                    new String[]{scope,path})){
+                if(manual.moveToFirst())return true;
+            }
+            State state=state(db,scope);
+            int generation=state.active>0?state.active:state.building;
+            if(generation==0)return false;
+            try(Cursor automatic=db.rawQuery(
+                    "SELECT preview_missing FROM objects WHERE scope=? AND generation=? AND path=? LIMIT 1",
+                    new String[]{scope,Integer.toString(generation),path})){
+                return automatic.moveToFirst()&&automatic.getInt(0)!=0;
+            }
+        }catch(Exception failure){
+            android.util.Log.w("FG_PREVIEW_FILTER","Preview flag lookup unavailable");
+            return false;
+        }
+    }
+
     /** Keep user-reviewed placeholder flags private and scoped to this account. */
     public void markPreview(String path,boolean affected)throws Exception{
         String scope=connectedScope();
