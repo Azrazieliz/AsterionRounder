@@ -437,6 +437,17 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
 
+      - name: Index and filter affected TeraBox previews without provider thumbnail dependency
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-affected-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-affected-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+          node ../hotfixes/test-rounder-affected-previews-20261114.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
