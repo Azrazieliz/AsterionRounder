@@ -23,9 +23,8 @@ const previewStart=main.indexOf('private WebResourceResponse fgTbPreview(Uri sou
 assert(previewStart>start&&previewStart<end,'Existing collection preview route must remain');
 const previewRoute=main.slice(previewStart,end);
 required(previewRoute,[
- 'FgRounderOriginalPreviews','openStill(path)',
- '"image/gif".equals(mime)','tb().open(path)',
- 'fgTbPages.get(Integer.parseInt(parts[3]))','tb().openThumbnail(path)'
+ 'fgTbPages.get(Integer.parseInt(parts[3]))','tb().openThumbnail(path)',
+ 'fgCloudIndex().isPreviewAffected(path)','return fgTbOriginalCover(path,mime)'
 ],'original image collection preview');
 assert(previewRoute.indexOf('tb().openThumbnail(path)')<previewRoute.indexOf('return fgTbOriginalCover(path,mime)'),
   'Collection images must prefer provider thumbnails unless affected');
