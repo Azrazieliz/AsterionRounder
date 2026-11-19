@@ -71,33 +71,36 @@
       "requirement_ref": "AR-LIB-002",
       "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
       "name": "Two-column larger video previews; unobstructed thumbnails",
-      "engineering_state": "TESTED_FUNCTIONAL",
+      "engineering_state": "INTEGRATED_UNTESTED",
       "owner_verdict": {
-        "verdict": "BROAD_NON_3D_SATISFACTION",
-        "evidence": "Owner statement 2026-11-01: 'It seems like everything works properly now. Just 3d ...' applies to the non-3D experience generally, not to an individually certified edge case.",
-        "date": "2026-11-01"
+        "verdict": "REPORTED_REGRESSION",
+        "evidence": "2026-11-19 screenshot: video cards show placeholder play glyphs, and media gallery displays three columns instead of approved two.",
+        "date": "2026-11-19"
       },
       "implementation": {
         "paths": [
           "openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py",
-          "openlocaloffice-build/additions/premium-library.js"
+          "openlocaloffice-build/additions/premium-library.js",
+          "openlocaloffice-build/hotfixes/repair-rounder-video-thumbnails-grid-20261119.py",
+          "openlocaloffice-build/hotfixes/test-rounder-video-gallery-20261119.cjs",
+          ".github/workflows/openlocaloffice-build.yml"
         ],
-        "head_evidence_commit": "1b42119d96fba6662c02a3762fc31157abb9260d",
+        "head_evidence_commit": "1f8f5f4f4356984e404a1abf24c34d1e645663f5",
         "pr": "https://github.com/Azrazieliz/AsterionRounder/pull/14"
       },
       "automation": [
         "openlocaloffice-build/hotfixes/test-rounder-aspect-archive-20261101.cjs"
       ],
       "verification": {
-        "level": "PHYSICAL_INSTALL_AND_OWNER_GENERAL_FEEDBACK",
-        "evidence": "Source tests passed, signed v0.15.14 installed, owner subsequent general report confirms app working."
+        "level": "SOURCE_PATCH_COMMITTED_NOT_BUILT",
+        "evidence": "Screenshot plus source audit identified later virtualized deck.className override dropping fg-lib-video-grid. Repaired class, final CSS override, video row sizing, and source regression gate; Android compilation/installation remains unverified."
       },
-      "functional_implementation": "Tracked implementation and/or associated patches located in openlocaloffice-build/hotfixes/apply-rounder-aspect-grid-archive-20261101.py",
-      "remaining": "Individual visual widths across all device sizes not exhaustively measured.",
-      "root_cause": "No confirmed root cause unless specified in evidence",
+      "functional_implementation": "Reinstate two large 16:9 video previews in pure or mixed folders and use matching virtual-scroll row heights instead of the older three-column fallback.",
+      "remaining": "Run final assembled-source gate and Android CI build; inspect real two-column gallery on phone after signed in-place update.",
+      "root_cause": "The later continuous-scrolling render sets deck.className without fg-lib-video-grid; previously accepted CSS cannot match.",
       "missing_assets_or_integrations": [],
       "dependencies": [],
-      "next_action": "Keep regression gate; test when UI is modified."
+      "next_action": "PR CI, signed build, non-destructive on-device two-column acceptance."
     },
     {
       "id": "AR-003",
@@ -553,6 +556,46 @@
         "AR-014"
       ],
       "next_action": "After explicit build approval, assemble with existing signing identity, run regression gates and perform non-destructive on-device acceptance. Do not auto-delete, move or upload anything."
+    },
+    {
+      "id": "AR-016",
+      "requirement_ref": "AR-LIB-002",
+      "authority_document": "docs/production/PROJECT_7STAR_AUTHORITY.md#approved-requirements-and-superseding-owner-corrections",
+      "name": "Restore genuine local and TeraBox video gallery thumbnails",
+      "engineering_state": "INTEGRATED_UNTESTED",
+      "owner_verdict": {
+        "verdict": "REPORTED_REGRESSION",
+        "evidence": "2026-11-19 screenshot shows generic video play icons in place of video frame previews.",
+        "date": "2026-11-19"
+      },
+      "implementation": {
+        "paths": [
+          "openlocaloffice-build/additions/FgRounderVideoPreviews.java",
+          "openlocaloffice-build/hotfixes/repair-rounder-video-thumbnails-grid-20261119.py",
+          "openlocaloffice-build/additions/FgTeraboxSearchIndex.java",
+          "openlocaloffice-build/hotfixes/test-rounder-video-gallery-20261119.cjs",
+          ".github/workflows/openlocaloffice-build.yml"
+        ],
+        "head_evidence_commit": "1f8f5f4f4356984e404a1abf24c34d1e645663f5"
+      },
+      "automation": [
+        ".github/workflows/openlocaloffice-build.yml",
+        "openlocaloffice-build/hotfixes/test-rounder-video-gallery-20261119.cjs"
+      ],
+      "verification": {
+        "level": "SOURCE_PATCH_COMMITTED_NOT_BUILT",
+        "evidence": "TeraBox live listing and index emit video cover proxy URLs; SAF listing emits lazy local video cover URLs; endpoint uses provider server thumbnail first and bounded (<16 MiB original range budget) native MediaMetadataRetriever fallback. No on-device proof yet."
+      },
+      "functional_implementation": "Lazy cover URL population, account-scoped server-thumbnail proxy, private Android local/cloud frame cache, bounded range extraction only when provider thumbnails unavailable.",
+      "remaining": "Run assembled app Java compile, source gate and genuine TeraBox/local MP4/WebM/MKV preview tests on Samsung Android. Provider-denied or unsupported codecs may still show fallback instead of a frame.",
+      "root_cause": "Both native TeraBox and SAF listings previously excluded video files from the cover assignment. November original-image proxy also denied video paths; indexed video matches lacked cover metadata.",
+      "missing_assets_or_integrations": [],
+      "dependencies": [
+        "AR-002",
+        "AR-006",
+        "AR-014"
+      ],
+      "next_action": "Verify signed CI and test thumbnails on device without wiping app or files."
     }
   ],
   "change_log": [
@@ -576,6 +619,13 @@
       "task_id": "AR-014",
       "commit": "ed141fbf0ec7ef47e8366bc6415d7b73ff04ded7",
       "description": "Bound virtual scrolling and disable WebView anchor feedback; release regression gate included, Android test pending."
+    },
+    {
+      "date": "2026-11-19",
+      "type": "SOURCE_FIX",
+      "task_id": "AR-002 / AR-016",
+      "commit": "1f8f5f4f4356984e404a1abf24c34d1e645663f5",
+      "description": "Recovery for owner-reported no-video-thumbnails and three-column gallery, with CI source gate. Physical device test pending."
     }
   ],
   "open_gaps": [
@@ -584,5 +634,5 @@
     "Native Koikatsu Android integration not automatically assumed; owner will return with test results."
   ],
   "latest_source_branch": "fix/rounder-terabox-gif-thumbnail-recovery-20261114",
-  "latest_source_note": "2026-11-14 original TeraBox thumbnails and affected previews source only; prior PR #20 remains open at its older head."
+  "latest_source_note": "2026-11-19 gallery grid and video thumbnail repair committed to November 14 source branch; CI build and Android verification pending."
 }
