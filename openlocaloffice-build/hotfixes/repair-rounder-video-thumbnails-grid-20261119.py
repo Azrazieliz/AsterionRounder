@@ -23,14 +23,23 @@ def once(code, before, after, what):
         raise AssertionError(f"{what}: expected exactly one assembly anchor, found {count}")
     return code.replace(before, after, 1)
 
-# Direct TeraBox listings previously emitted native covers for *images only*.
-# TeraBox supplies thumbnail metadata for videos too; use existing secure proxy.
-before = '''if(!mapped.optBoolean("folder")&&
-                               com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))){'''
-after = '''if(!mapped.optBoolean("folder")&&
-                               (com.openlocal.office.core.FgTeraboxClient.image(mapped.optString("name",""))||
-                                com.openlocal.office.core.FgRounderVideoPreviews.isVideo(mapped.optString("name","")))){'''
-native = once(native, before, after, "native cloud video cover assignment")
+# Direct TeraBox listing's image-cover conditional differs between overlays.
+# Insert an independent video assignment at the stable batch emission point:
+# no existing image behavior or private cloud file is changed.
+start = native.index("    private void listTeraboxNative(")
+end = native.index("    private ", start + len("    private void listTeraboxNative("))
+listing = native[start:end]
+anchor = "                            batch.put(mapped);"
+replacement = """                            if(!mapped.optBoolean("folder")&&
+                               com.openlocal.office.core.FgRounderVideoPreviews.isVideo(
+                                   mapped.optString("name",""))){
+                                mapped.put("cover","https://fg-assets.invalid/tb-cover/"+
+                                    fgTbCoverId(path,page));
+                                mapped.put("remoteCover",true);
+                            }
+""" + anchor
+listing = once(listing, anchor, replacement, "cloud video cover before batch")
+native = native[:start] + listing + native[end:]
 
 # The existing SAF library is streamed in batches. Add the same lazy cover
 # URL to local videos without scanning the file during folder enumeration.
