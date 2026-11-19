@@ -448,6 +448,18 @@ jobs:
           node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
           node ../hotfixes/test-rounder-affected-previews-20261114.cjs
 
+
+      - name: Restore two-wide video galleries and genuine lazy video thumbnails
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderVideoPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderVideoPreviews.java
+          python3 -m py_compile ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          python3 ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-video-gallery-20261119.cjs
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
