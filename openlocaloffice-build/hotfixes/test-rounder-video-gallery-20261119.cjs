@@ -13,9 +13,11 @@ const requirement=/\.fg-lib-grid\.fg-lib-video-grid:not\(\.fg-lib-list\)\s*\{\s*
 assert.match(css,requirement,'Video grids must display exactly two cards');
 assert.match(css,/\.fg-lib-video \.fg-lib-cover\{\s*aspect-ratio:16\/9!important/);
 assert.match(css,/\.fg-lib-video \.fg-lib-cover-image\{\s*object-fit:contain!important/);
-assert.match(js,/const hasVideos=!useList&&files\.some\(item=>classify\(item\)==='video'\)/);
+assert.match(js,/const hasVideos=!useList&&virtualHasVideos/);
+assert.match(js,/virtualHasVideos=virtualFiles\.some\(e=>classify\(e\)==='video'\)/);
+assert.match(js,/virtualHasPortraits=virtualFiles\.some\(e=>classify\(e\)!=='video'\)/);
 assert.match(js,/\(hasVideos\?' fg-lib-video-grid':''\)/);
-assert.match(js,/Math\.ceil\(cellWidth\*\(hasVideos\?9\/16:1\.5\)\+86\)/);
+assert.match(js,/Math\.ceil\(cellWidth\*\(hasVideos&&!virtualHasPortraits\?9\/16:1\.5\)\+86\)/);
 assert.match(main,/FgRounderVideoPreviews\.isVideo\(\s*mapped\.optString\("name",""\)\)/);
 assert.match(main,/FgRounderVideoPreviews\.isVideo\(name\)/);
 assert.match(main,/FgRounderVideoPreviews\.local\(/);
