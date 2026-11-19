@@ -777,6 +777,23 @@ public final class FgTeraboxClient {
             while((n=input.read(bytes))>=0)output.write(bytes,0,n);
         }
     }
+    /**
+     * Only provider metadata determines a missing TeraBox preview. A provider
+     * placeholder returned as a valid image is NOT automatically diagnosed as
+     * restricted; the owner can flag those through Rounder's file actions.
+     * An absent HTTPS thumbnail is an observable, accurate condition.
+     */
+    public static boolean previewUnavailable(JSONObject source){
+        if(source==null||source.optInt("isdir",0)!=0||
+           !image(source.optString("server_filename","")))return false;
+        JSONObject urls=source.optJSONObject("thumbs");
+        if(urls==null)return true;
+        for(String key:new String[]{"url1","url2","url3"}){
+            String value=urls.optString(key,"");
+            if(value.startsWith("https://"))return false;
+        }
+        return true;
+    }
     public static JSONObject mapEntry(JSONObject source) throws Exception{
         String name=source.optString("server_filename","");
         String path=source.optString("path","");
@@ -789,6 +806,7 @@ public final class FgTeraboxClient {
             .put("size",size).put("modified",modified)
             .put("mime",folder?"vnd.android.document/directory":typeFor(name))
             .put("uri","fgterabox://file/"+Uri.encode(path))
-            .put("terabox",true);
+            .put("terabox",true)
+            .put("previewUnavailable",!folder&&previewUnavailable(source));
     }
 }
