@@ -104,19 +104,33 @@ replacement = '''                            if("video".equals(cursor.getString(
 cloud_index = once(cloud_index, anchor, replacement, "indexed video thumbnails")
 index.write_text(cloud_index, encoding="utf-8")
 
+# Cache layout categories once per folder/index revision, not on every
+# WebView scroll. A mixed folder can contain tall book/image/folder cards:
+# those rows must retain the original portrait height to avoid clipping.
+js = once(js,
+    "let virtualFiles=[],virtualFolders=[],virtualHasCovers=false,folderRegion=null;",
+    "let virtualFiles=[],virtualFolders=[],virtualHasCovers=false,virtualHasVideos=false,virtualHasPortraits=false,folderRegion=null;",
+    "cache gallery mix flags")
+js = once(js,
+    "   virtualHasCovers=virtualFiles.some(e=>!!e.cover);",
+    """   virtualHasCovers=virtualFiles.some(e=>!!e.cover);
+   virtualHasVideos=virtualFiles.some(e=>classify(e)==='video');
+   virtualHasPortraits=virtualFiles.some(e=>classify(e)!=='video');""",
+    "derive video and portrait flags once per data revision")
+
 # The continuous renderer replaced 'fg-lib-video-grid' with the generic
 # three-column grid. Restore the class for mixed folders and video filters.
 anchor = ''' const useList=list;
  deck.className='fg-lib-grid'+(useList?' fg-lib-list':' fg-vault-media-grid');
  const computedCols='''
 replacement = ''' const useList=list;
- const hasVideos=!useList&&files.some(item=>classify(item)==='video');
+ const hasVideos=!useList&&virtualHasVideos;
  deck.className='fg-lib-grid'+(useList?' fg-lib-list':' fg-vault-media-grid')+
    (hasVideos?' fg-lib-video-grid':'');
  const computedCols='''
 js = once(js, anchor, replacement, "continuous two-column video grid")
 anchor = ''' const rowHeight=useList?124:Math.ceil(cellWidth*1.5+86);'''
-replacement = ''' const rowHeight=useList?124:Math.ceil(cellWidth*(hasVideos?9/16:1.5)+86);'''
+replacement = ''' const rowHeight=useList?124:Math.ceil(cellWidth*(hasVideos&&!virtualHasPortraits?9/16:1.5)+86);'''
 js = once(js, anchor, replacement, "accurate virtual row height for video landscape cards")
 library.write_text(js, encoding="utf-8")
 
