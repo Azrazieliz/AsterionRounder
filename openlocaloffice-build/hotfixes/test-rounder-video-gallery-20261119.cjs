@@ -16,7 +16,7 @@ assert.match(css,/\.fg-lib-video \.fg-lib-cover-image\{\s*object-fit:contain!imp
 assert.match(js,/const hasVideos=!useList&&files\.some\(item=>classify\(item\)==='video'\)/);
 assert.match(js,/\(hasVideos\?' fg-lib-video-grid':''\)/);
 assert.match(js,/Math\.ceil\(cellWidth\*\(hasVideos\?9\/16:1\.5\)\+86\)/);
-assert.match(main,/FgRounderVideoPreviews\.isVideo\(mapped\.optString\("name",""\)\)/);
+assert.match(main,/FgRounderVideoPreviews\.isVideo\(\s*mapped\.optString\("name",""\)\)/);
 assert.match(main,/FgRounderVideoPreviews\.isVideo\(name\)/);
 assert.match(main,/FgRounderVideoPreviews\.local\(/);
 assert.match(main,/FgRounderVideoPreviews\.cloud\(/);
