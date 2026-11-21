@@ -324,9 +324,11 @@ actions=r'''    fileAction(sheet,'Properties','Cloud file metadata',()=>fileProp
       },{danger:true});
     },{danger:true});
 '''
-anchor="    fileAction(sheet,'Close','',closeFileActions);\n    return;\n  }\n  const kind=classify(item);"
-if j.count(anchor)!=1:raise AssertionError("cloud sheet location changed")
-j=j.replace(anchor,actions+anchor,1)
+start=j.index("function showFileActions(item){")
+cloud_start=j.index("if(item.terabox){",start)
+close=j.index("fileAction(sheet,'Close','',closeFileActions);",cloud_start)
+if close<0:raise AssertionError("cloud sheet Close action missing")
+j=j[:close]+actions+j[close:]
 j=insert_once(j,"  if(!cloudMode&&!bridge()?.getLibraryRoot?.())",
     "  cloudFolderButton.hidden=!cloudMode;\n", "cloud new folder button visibility")
 j=insert_once(j,"  if(cloudMode && !bridge()?.getTeraboxConfigured?.())",
