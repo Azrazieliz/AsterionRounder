@@ -318,12 +318,13 @@ public final class FgTeraboxClient {
     }
     private JSONObject postCloudOnce(String endpoint,Map<String,String> query,
                                     Map<String,String> fields)throws Exception{
+        String token=currentCloudJsToken();
         Uri.Builder url=Uri.parse(fgWriteBase+endpoint).buildUpon()
             .appendQueryParameter("app_id","250528")
             .appendQueryParameter("web","1")
             .appendQueryParameter("channel","dubox")
-            .appendQueryParameter("clienttype","0")
-            .appendQueryParameter("jsToken",currentCloudJsToken());
+            .appendQueryParameter("clienttype","0");
+        if(!token.isEmpty())url.appendQueryParameter("jsToken",token);
         for(Map.Entry<String,String> arg:query.entrySet())
             url.appendQueryParameter(arg.getKey(),arg.getValue());
         HttpURLConnection conn=(HttpURLConnection)new URL(url.build().toString()).openConnection();
