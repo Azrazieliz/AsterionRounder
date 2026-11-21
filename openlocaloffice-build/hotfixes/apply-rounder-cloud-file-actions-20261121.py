@@ -329,10 +329,9 @@ cloud_start=j.index("if(item.terabox){",start)
 close=j.index("fileAction(sheet,'Close','',closeFileActions);",cloud_start)
 if close<0:raise AssertionError("cloud sheet Close action missing")
 j=j[:close]+actions+j[close:]
-j=insert_once(j,"  if(!cloudMode&&!bridge()?.getLibraryRoot?.())",
-    "  cloudFolderButton.hidden=!cloudMode;\n", "cloud new folder button visibility")
-j=insert_once(j,"  if(cloudMode && !bridge()?.getTeraboxConfigured?.())",
-    "  cloudFolderButton.hidden=!cloudMode;\n", "cloud new folder on request")
+j=insert_once(j,"function request(){",
+    "function request(){\n  cloudFolderButton.hidden=!cloudMode;\n",
+    "cloud new folder on request")
 if j.count("window.FileGestionerLibrary={")!=1:
     raise AssertionError("cloud folder callback anchor changed")
 j=j.replace("window.FileGestionerLibrary={",
