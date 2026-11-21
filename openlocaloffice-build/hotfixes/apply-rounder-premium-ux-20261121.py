@@ -25,9 +25,23 @@ j=one(j,"const cloudFolderButton=b('New folder','fg-lib-secondary',()=>cloudCrea
 # Existing read-only cloud tile menus must be visible and keyboard accessible,
 # otherwise rename/move/delete are unreachable without a 580ms long-press.
 j=one(j,
-   "more.title='File actions';more.setAttribute('aria-label','Actions for '+item.name);",
-   "more.title='Rename, move, copy or delete';more.setAttribute('aria-label','Actions for '+item.name);",
-   "file action accessibility")
+    " tile.append(cover,meta);",
+    """ tile.append(cover,meta);
+ const more=b('⋯','fg-lib-more',event=>{
+   event.stopPropagation();showFileActions(item);
+ });
+ more.setAttribute('aria-label','More actions for '+item.name);
+ more.setAttribute('title','Rename, move, copy and delete');
+ meta.append(more);""",
+    "visible unobtrusive file action button")
+j=one(j,
+    "   if(item.indexedSearch)return;\n   event.preventDefault();showFileActions(item);",
+    "   event.preventDefault();showFileActions(item);",
+    "cloud indexed search context actions")
+j=one(j,
+    "if(!item.indexedSearch && e.pointerType==='touch' && !e.target.closest('.fg-lib-more'))",
+    "if(e.pointerType==='touch' && !e.target.closest('.fg-lib-more'))",
+    "cloud indexed search touch actions")
 # Prevent the app from offering moving a source into itself, and make the
 # choice visible before invoking a native cloud mutation.
 j=one(j,
