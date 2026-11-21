@@ -55,9 +55,10 @@ new=""" const columns=2;
  const rows=Math.ceil(folders.length/columns),rowHeight=140;"""
 if source.count(old)!=1:raise AssertionError("folder virtualization column contract changed")
 source=source.replace(old,new,1)
-old_use="const useList=list||!virtualHasCovers||filter==='document'||filter==='file';"
-if source.count(old_use)!=1:raise AssertionError("default 2-column media contract changed")
-source=source.replace(old_use,"const useList=list; // two-column visual cards for every file type; explicit list view still works",1)
+# The latest assembled source already defaults to visual cards. Keep list
+# presentation only when the user explicitly selects List mode.
+if source.count("const useList=list;")!=1:
+    raise AssertionError("default 2-column media contract changed")
 js.write_text(source,encoding="utf-8")
 css_text=css.read_text(encoding="utf-8")
 assert "grid-template-columns:repeat(2,minmax(0,1fr))" in css_text
