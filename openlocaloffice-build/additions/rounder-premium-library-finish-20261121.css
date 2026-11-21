@@ -257,3 +257,31 @@ body.fg-folder-reading .fg-image-reader .fg-image-toolbar.fg-image-toolbar-expan
  }
  .fg-file-sheet{border-radius:24px!important;margin:auto!important;max-height:80dvh!important}
 }
+
+/* File actions are discoverable underneath artwork, never over thumbnails. */
+.fg-library-root .fg-lib-tile-meta{
+ display:grid!important;
+ grid-template-columns:minmax(0,1fr) 34px!important;
+ grid-template-rows:auto auto!important;
+ align-items:center!important;column-gap:6px!important;row-gap:3px!important;
+ min-height:38px!important;
+}
+.fg-library-root .fg-lib-tile-meta .fg-lib-item-title{
+ grid-column:1!important;grid-row:1!important;min-width:0!important;
+}
+.fg-library-root .fg-lib-tile-meta .fg-lib-item-detail{
+ grid-column:1!important;grid-row:2!important;min-width:0!important;
+}
+.fg-library-root .fg-lib-tile-meta .fg-lib-more{
+ position:static!important;inset:auto!important;
+ grid-column:2!important;grid-row:1 / span 2!important;
+ width:34px!important;height:34px!important;
+ align-self:center!important;justify-self:end!important;
+ background:linear-gradient(145deg,#294057,#1b2b43)!important;
+ border:1px solid #587189!important;border-radius:11px!important;
+ box-shadow:inset 0 1px #ffffff11!important;
+ color:#eacaa2!important;font-size:19px!important;
+}
+.fg-library-root .fg-lib-list .fg-lib-tile-meta{
+ flex:1 1 auto!important;
+}
