@@ -36,13 +36,17 @@ java_methods=r'''
         return ("/".equals(folder)?"":folder)+"/"+checkedCloudName(name);
     }
 
-    /** Drops ONLY cached metadata, never saved originals or user data. */
-    private void invalidateCloudFilePages(){
-        synchronized(hotPages){hotPages.clear();}
-        File directory=new File(app.getFilesDir(),"terabox-directory-pages-v1");
-        File[] pages=directory.listFiles();
-        if(pages!=null)for(File page:pages)
-            if(page.isFile()&&page.getName().endsWith(".gz"))page.delete();
+    /** Invalidate only the modified folders, preserving huge account caches. */
+    private void invalidateCloudFolder(String folder){
+        String scope=metadataScope();
+        if(scope.isEmpty())return;
+        String prefix=scope+"|"+folder+"|";
+        synchronized(hotPages){
+            hotPages.keySet().removeIf(key->key.startsWith(prefix));
+        }
+        prefs.edit().putLong("directory_edit_"+cacheId(scope+"|"+folder),
+            System.currentTimeMillis()).apply();
+        synchronized(linkCache){linkCache.clear();}
     }
     private JSONObject manageCloudFile(String operation,JSONArray items)throws Exception{
         Map<String,String> query=new LinkedHashMap<>();
@@ -59,7 +63,6 @@ java_methods=r'''
                 throw new IOException("TeraBox "+operation+" failed for an item: "+
                     row.optInt("errno"));
         }
-        invalidateCloudFilePages();
         return result;
     }
     public void renameCloud(String source,String newName)throws Exception {
@@ -71,6 +74,7 @@ java_methods=r'''
         JSONArray files=new JSONArray().put(new JSONObject().put("path",from)
             .put("newname",name));
         manageCloudFile("rename",files);
+        invalidateCloudFolder(cloudParent(from));
         JSONObject changed=fileDetails(target);
         if(!target.equals(changed.optString("path",target))||
            (before>=0&&changed.optLong("size",-1)!=before))
@@ -87,6 +91,8 @@ java_methods=r'''
         JSONArray files=new JSONArray().put(new JSONObject().put("path",from)
             .put("dest",dest).put("newname",name));
         manageCloudFile(copy?"copy":"move",files);
+        invalidateCloudFolder(cloudParent(from));
+        invalidateCloudFolder(dest);
         JSONObject created=fileDetails(target);
         if(!target.equals(created.optString("path",target))||
            (before>=0&&created.optLong("size",-1)!=before))
@@ -97,6 +103,7 @@ java_methods=r'''
         if("/".equals(from))throw new IllegalArgumentException("Cannot delete cloud root");
         fileDetails(from); // refuse removal of an already missing/stale path
         manageCloudFile("delete",new JSONArray().put(from));
+        invalidateCloudFolder(cloudParent(from));
         // Provider reports an accepted operation; absence is checked afresh.
         try{
             JSONObject remaining=fileDetails(from);
@@ -114,7 +121,7 @@ java_methods=r'''
     public void createCloudFolder(String destination,String name)throws Exception{
         String path=cloudJoin(safePath(destination),checkedCloudName(name));
         createDirectory(path);
-        invalidateCloudFilePages();
+        invalidateCloudFolder(safePath(destination));
         JSONObject created=fileDetails(path);
         if(created.optInt("isdir",0)!=1)
             throw new IOException("Folder creation unverified");
@@ -143,6 +150,14 @@ java_methods=r'''
 original=client.read_text(encoding="utf-8")
 updated=insert_once(original,"    /** Fresh metadata for newest incoming items",java_methods,
                     "client cloud write methods")
+# Each cached folder page is reused only if no writes occurred to that folder.
+old_cache='if(saved.isFile()&&age>=0&&age<15L*60*1000L){'
+new_cache=('if(saved.isFile()&&age>=0&&age<15L*60*1000L&&'
+           'saved.lastModified()>=prefs.getLong('
+           '"directory_edit_"+cacheId(scope+"|"+folder),0L)){')
+updated=insert_once(updated,old_cache,new_cache,"stale cloud page guard")
+# insert_once preserves anchor, so eliminate the old conditional once.
+updated=updated.replace(new_cache+old_cache,new_cache,1)
 client.write_text(updated,encoding="utf-8")
 
 native=r'''
