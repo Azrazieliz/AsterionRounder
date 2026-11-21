@@ -478,27 +478,60 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         State state=state(getReadableDatabase(),scope);
         return state.active>0?state.active:state.building;
     }
-    /** Invalidate an indexed path only after remote deletion is confirmed. */
+    /** Keep recursive search accurate when a user deletes a folder tree. */
     public void noteDeleted(String expectedScope,String oldPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
-        getWritableDatabase().execSQL(
-            "DELETE FROM objects WHERE scope=? AND path=?",
-            new Object[]{expectedScope,oldPath});
-        getWritableDatabase().execSQL(
-            "DELETE FROM preview_marks WHERE scope=? AND path=?",
-            new Object[]{expectedScope,oldPath});
+        if(oldPath==null||"/".equals(oldPath)||!oldPath.startsWith("/"))return;
+        SQLiteDatabase db=getWritableDatabase();
+        db.beginTransactionNonExclusive();
+        try{
+            String where="scope=? AND (path=? OR "+
+                "(substr(path,1,length(?))=? AND "+
+                "substr(path,length(?)+1,1)='/'))";
+            Object[] args=new Object[]{expectedScope,oldPath,oldPath,oldPath,oldPath};
+            db.execSQL("DELETE FROM objects WHERE "+where,args);
+            db.execSQL("DELETE FROM preview_marks WHERE "+where,args);
+            db.execSQL("DELETE FROM pending WHERE "+where,args);
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
     }
+    /** Update cloud folder descendants without leaving old indexed paths behind. */
     public void noteMoved(String expectedScope,String oldPath,String newPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
+        if(oldPath==null||newPath==null||"/".equals(oldPath)||
+           !oldPath.startsWith("/")||!newPath.startsWith("/"))return;
         SQLiteDatabase db=getWritableDatabase();
         String parent=newPath.substring(0,newPath.lastIndexOf('/'));
         if(parent.isEmpty())parent="/";
-        db.execSQL("UPDATE objects SET path=?,parent=? WHERE scope=? AND path=?",
-            new Object[]{newPath,parent,expectedScope,oldPath});
-        db.execSQL("INSERT OR REPLACE INTO preview_marks(scope,path,marked) SELECT scope,?,marked FROM preview_marks WHERE scope=? AND path=?",
-            new Object[]{newPath,expectedScope,oldPath});
-        db.execSQL("DELETE FROM preview_marks WHERE scope=? AND path=?",
-            new Object[]{expectedScope,oldPath});
+        String name=newPath.substring(newPath.lastIndexOf('/')+1);
+        String childWhere="scope=? AND substr(path,1,length(?))=? AND "+
+            "substr(path,length(?)+1,1)='/'";
+        db.beginTransactionNonExclusive();
+        try{
+            // SQL expressions use original row values; descendants first
+            // avoids temporarily hiding them behind a renamed parent.
+            db.execSQL("UPDATE objects SET "+
+                "path=? || substr(path,length(?)+1),"+
+                "parent=CASE WHEN parent=? THEN ? ELSE "+
+                "? || substr(parent,length(?)+1) END WHERE "+childWhere,
+                new Object[]{newPath,oldPath,oldPath,newPath,
+                    newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE objects SET path=?,parent=?,name=?,needle=? "+
+                "WHERE scope=? AND path=?",
+                new Object[]{newPath,parent,name,name.toLowerCase(Locale.ROOT),
+                    expectedScope,oldPath});
+            db.execSQL("UPDATE preview_marks SET "+
+                "path=? || substr(path,length(?)+1) WHERE "+childWhere,
+                new Object[]{newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE preview_marks SET path=? WHERE scope=? AND path=?",
+                new Object[]{newPath,expectedScope,oldPath});
+            db.execSQL("UPDATE pending SET "+
+                "path=? || substr(path,length(?)+1) WHERE "+childWhere,
+                new Object[]{newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE pending SET path=? WHERE scope=? AND path=?",
+                new Object[]{newPath,expectedScope,oldPath});
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
     }
     public void clear(){
         try{
