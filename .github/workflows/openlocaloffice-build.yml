@@ -489,6 +489,20 @@ jobs:
           grep -Fq 'fg-rounder-library-visible' app/src/main/assets/style.css
           grep -Fq 'WRITE_BASES' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
 
+      - name: Complete Rounder premium UI and immersive image navigation
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-premium-ux-20261121.py
+          python3 ../hotfixes/apply-rounder-premium-ux-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          node --check app/src/main/assets/reader-controls.js
+          grep -Fq 'imageNavTimer' app/src/main/assets/reader-controls.js
+          grep -Fq 'fg-vault-folderrail{' app/src/main/assets/style.css
+          grep -Fq 'fg-lib-more{' app/src/main/assets/style.css
+          grep -Fq 'fg-image-toolbar-hidden' app/src/main/assets/style.css
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
