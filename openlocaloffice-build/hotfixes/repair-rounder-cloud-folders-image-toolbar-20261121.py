@@ -24,7 +24,7 @@ for call in [
     "bridge()?.fetchTeraboxFolderPreviews?.(JSON.stringify(pending));",
     "bridge()?.fetchTeraboxFolderPreviews?.(JSON.stringify(folders));"
 ]:
-    j=once(j,call,"/* Folder uses an actual folder icon; no remote mosaic fetch. */",
+    j=once(j,call,"void 0; /* No remote folder mosaic fetch. */",
            "remove broken folder cover fetch")
 
 start=j.index("function folderCard(item){")
