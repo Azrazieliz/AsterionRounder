@@ -12,7 +12,7 @@ on:
 
 # Only the newest commit on a PR consumes the Android emulator.
 concurrency:
-  group: rounder-preserve-existing-cards-v23-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: rounder-video-preview-v2-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -425,6 +425,55 @@ jobs:
           set -euo pipefail
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-scroll-stability-20261112.cjs
+
+      - name: Generate image previews from authenticated originals, including animated GIFs
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderOriginalPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderOriginalPreviews.java
+          python3 -m py_compile ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+
+      - name: Index and filter affected TeraBox previews without provider thumbnail dependency
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-affected-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-affected-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+          node ../hotfixes/test-rounder-affected-previews-20261114.cjs
+
+
+      - name: Restore two-wide video galleries and genuine lazy video thumbnails
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderVideoPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderVideoPreviews.java
+          python3 -m py_compile ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          python3 ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-video-gallery-20261119.cjs
+
+      - name: Enable authenticated TeraBox rename move copy delete and new folders
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          python3 ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'public void renameCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void transferCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void deleteCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void createCloudFolder(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'cloudFileOperation(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'cloudFolderChoices' app/src/main/assets/premium-library.js
 
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project

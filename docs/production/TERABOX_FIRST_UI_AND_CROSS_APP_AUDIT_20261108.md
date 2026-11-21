@@ -56,3 +56,13 @@ Downloader uploads files → TeraBox remote → Rounder browses/streams from the
 7. New UI selection approved before changing navigation; verify on phone.
 
 **Evidence boundary:** source inspection and CI are not device acceptance. All runtime statuses require explicit tests.
+
+
+## November 14 original-preview recovery and affected-images filter (source integration)
+
+- All visible TeraBox image cards and collection mosaics use Rounder's private, account-scoped original-file preview route, not the restricted server thumbnail endpoint. Still images are locally decoded into bounded JPEG thumbnails; GIF cover streams preserve animation. Opening an image still uses the existing native reader.
+- The **Affected previews** category searches the persistent, recursive cloud metadata index (including nested folders). Files are automatically included **only** when TeraBox listing metadata provides no HTTPS preview URL; this is evidence of an unavailable provider preview, not proof of content censorship.
+- A TeraBox preview may instead return a visually substituted placeholder behind an otherwise valid URL. Metadata alone cannot reliably detect that. The existing file-action sheet therefore offers **Flag affected preview** / **Remove affected-preview flag**, persisted only in Rounder's private, per-account SQLite database. The filter includes those owner-reviewed images alongside metadata-unavailable ones.
+- A small status dot and accessible tile description identify affected items without rearranging approved cards or covering the actual image. No original files are moved, downloaded in bulk, overwritten, deleted or sent to a new service by the filter.
+- The search database migrates to schema v3 and performs a **one-time, resumable metadata-only reindex** to populate the missing-preview field for existing accounts. Search results are incomplete until indexing finishes; no full cloud request is made per keystroke.
+- Native and JavaScript source contracts are in `test-rounder-original-gif-previews-20261114.cjs` and `test-rounder-affected-previews-20261114.cjs`. This branch has **not** been built or physically tested; do not treat the source additions as a verified signed Android release. Legacy emulator boot failure is separate from runtime app correctness.
