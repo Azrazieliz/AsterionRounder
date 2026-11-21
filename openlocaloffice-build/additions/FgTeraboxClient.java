@@ -88,6 +88,7 @@ public final class FgTeraboxClient {
             Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE,key());
             byte[] ciphertext=cipher.doFinal(token.getBytes(StandardCharsets.UTF_8));
+            fgWriteJsToken="";fgWriteJsTokenTime=0L;
             synchronized(hotPages){hotPages.clear();}
             prefs.edit().putString("preview_scope",java.util.UUID.randomUUID().toString())
                 .putString("ndus",Base64.encodeToString(ciphertext,Base64.NO_WRAP))
@@ -100,6 +101,7 @@ public final class FgTeraboxClient {
         }
     }
     public synchronized void disconnect(){
+        fgWriteJsToken="";fgWriteJsTokenTime=0L;
         linkCache.clear();thumbUrls.clear();
         synchronized(hotPages){hotPages.clear();}
         prefs.edit().remove("ndus").remove("iv").remove("preview_scope").apply();
@@ -177,17 +179,152 @@ public final class FgTeraboxClient {
         }finally{connection.disconnect();}
     }
 
-    /**
-     * Authenticated server-side file operations. Never downloads, renames on
-     * collision, or deletes data. Based on TeraBox's /api/filemanager contract;
-     * a provider rejection is an error, not a silently successful move.
+    private volatile String fgWriteJsToken="";
+    private volatile long fgWriteJsTokenTime=0L;
+    private static final class ExpiredCloudJsToken extends IOException {
+        ExpiredCloudJsToken(int status){super("Cloud write token expired: "+status);}
+    }
+    /** The token is obtained from the already authorized TeraBox account,
+     * never stored on disk, shared with JavaScript or written to logs.
+     */
+    // Session-authenticated web bootstrap: the standard API endpoints remain
+    // independent and existing cloud read/stream behavior stays untouched.
+    private volatile String fgWriteBase=API;
+    private static final String[] WRITE_BASES={
+        "https://www.terabox.com","https://www.terabox.app",
+        "https://1024terabox.com"
+    };
+    private static final String[] WRITE_AGENTS={
+        "terabox;1.37.0.7;PC;PC-Windows;10.0.22631;WindowsTeraBox",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    };
+    private static boolean permittedWriteHost(String host){
+        if(host==null)return false;
+        String value=host.toLowerCase(Locale.ROOT);
+        return value.equals("terabox.com")||
+               value.equals("www.terabox.com")||
+               value.equals("terabox.app")||
+               value.equals("www.terabox.app")||
+               value.equals("1024terabox.com")||
+               value.equals("www.1024terabox.com");
+    }
+    private static String parseCloudJsToken(String html)throws Exception {
+        if(html==null||html.isEmpty())return "";
+        final String[] markers={
+            "function%20fn%28a%29%7Bwindow.jsToken%20%3D%20a%7D%3Bfn%28%22",
+            "fn%28%22"
+        };
+        for(String marker:markers){
+            int begin=html.indexOf(marker);
+            if(begin<0)continue;
+            int from=begin+marker.length(),to=html.indexOf("%22%29",from);
+            if(to>from&&to-from<2048){
+                String token=URLDecoder.decode(html.substring(from,to),"UTF-8");
+                if(acceptableCloudToken(token))return token;
+            }
+        }
+        java.util.regex.Matcher m=java.util.regex.Pattern.compile(
+            "(?:window\\.)?jsToken\\s*[=:]\\s*['\"]([^'\"\\r\\n]{12,1024})['\"]")
+            .matcher(html);
+        if(m.find()&&acceptableCloudToken(m.group(1)))return m.group(1);
+        return "";
+    }
+    private static boolean acceptableCloudToken(String token){
+        return token!=null&&token.length()>=12&&token.length()<=1024&&
+            token.indexOf('\r')<0&&token.indexOf('\n')<0&&token.indexOf(' ')<0;
+    }
+    private String cloudWebToken(String base,String userAgent)throws Exception {
+        URL url=new URL(base+"/");
+        for(int hop=0;hop<4;hop++){
+            if(!"https".equalsIgnoreCase(url.getProtocol())||
+                !permittedWriteHost(url.getHost()))return "";
+            HttpURLConnection web=(HttpURLConnection)url.openConnection();
+            web.setInstanceFollowRedirects(false);
+            web.setConnectTimeout(5500);
+            web.setReadTimeout(10000);
+            web.setRequestProperty("Cookie",cookie());
+            web.setRequestProperty("Referer",base+"/");
+            web.setRequestProperty("User-Agent",userAgent);
+            web.setRequestProperty("Accept","text/html,application/xhtml+xml,*/*");
+            web.setRequestProperty("Accept-Encoding","identity");
+            try {
+                int status=web.getResponseCode();
+                if(status==301||status==302||status==303||
+                   status==307||status==308){
+                    String location=web.getHeaderField("Location");
+                    if(location==null||location.length()>2048)return "";
+                    URL follow=new URL(url,location);
+                    if(!permittedWriteHost(follow.getHost())||
+                       !"https".equalsIgnoreCase(follow.getProtocol()))return "";
+                    url=follow;continue;
+                }
+                if(status!=200)return "";
+                ByteArrayOutputStream out=new ByteArrayOutputStream();
+                try(InputStream in=web.getInputStream()){
+                    byte[] buf=new byte[8192];int n;
+                    while((n=in.read(buf))!=-1){
+                        if(out.size()+n>5*1024*1024)return "";
+                        out.write(buf,0,n);
+                    }
+                }
+                String token=parseCloudJsToken(out.toString("UTF-8"));
+                if(!token.isEmpty())fgWriteBase="https://"+url.getHost();
+                return token;
+            }finally{web.disconnect();}
+        }
+        return "";
+    }
+    private synchronized String currentCloudJsToken()throws Exception{
+        if(!fgWriteJsToken.isEmpty()&&
+           System.currentTimeMillis()-fgWriteJsTokenTime<10L*60*1000L)
+            return fgWriteJsToken;
+        // Never claim a write failed before checking authenticated endpoints.
+        // Some regions redirect or forbid the web home while /api/list works.
+        fgWriteJsToken="";
+        fgWriteBase=API;
+        for(String base:WRITE_BASES){
+            for(String agent:WRITE_AGENTS){
+                String candidate="";
+                try{candidate=cloudWebToken(base,agent);}
+                catch(IOException blocked){
+                    android.util.Log.d("FG_TERA_WRITE",
+                        "Cloud web bootstrap unavailable for "+base);
+                }
+                if(acceptableCloudToken(candidate)){
+                    fgWriteJsToken=candidate;
+                    fgWriteJsTokenTime=System.currentTimeMillis();
+                    return candidate;
+                }
+            }
+        }
+        // No bogus static token: try an authenticated cookie-only write once
+        // and let the actual provider status determine whether it is supported.
+        fgWriteJsTokenTime=System.currentTimeMillis();
+        return "";
+    }
+    /** Cookie and write token are paired; refresh once only on a rejection
+     * that explicitly indicates an expired write token.
      */
     private JSONObject postCloud(String endpoint,Map<String,String> query,
-                                 Map<String,String> fields)throws Exception {
-        Uri.Builder url=Uri.parse(API+endpoint).buildUpon()
+                                 Map<String,String> fields)throws Exception{
+        try{return postCloudOnce(endpoint,query,fields);}
+        catch(ExpiredCloudJsToken rejected){
+            synchronized(this){fgWriteJsToken="";fgWriteJsTokenTime=0L;}
+            try{return postCloudOnce(endpoint,query,fields);}
+            catch(ExpiredCloudJsToken again){
+                throw new IOException("TeraBox requires a valid write jsToken; authenticated web bootstrap unavailable");
+            }
+        }
+    }
+    private JSONObject postCloudOnce(String endpoint,Map<String,String> query,
+                                    Map<String,String> fields)throws Exception{
+        String token=currentCloudJsToken();
+        Uri.Builder url=Uri.parse(fgWriteBase+endpoint).buildUpon()
             .appendQueryParameter("app_id","250528")
+            .appendQueryParameter("web","1")
             .appendQueryParameter("channel","dubox")
             .appendQueryParameter("clienttype","0");
+        if(!token.isEmpty())url.appendQueryParameter("jsToken",token);
         for(Map.Entry<String,String> arg:query.entrySet())
             url.appendQueryParameter(arg.getKey(),arg.getValue());
         HttpURLConnection conn=(HttpURLConnection)new URL(url.build().toString()).openConnection();
@@ -220,12 +357,16 @@ public final class FgTeraboxClient {
                 ByteArrayOutputStream out=new ByteArrayOutputStream()){
                 byte[] block=new byte[4096];int count;
                 while((count=in.read(block))>=0){
-                    if(out.size()+count>128*1024)throw new IOException("Cloud response too large");
+                    if(out.size()+count>128*1024)
+                        throw new IOException("Cloud response too large");
                     out.write(block,0,count);
                 }
                 JSONObject response=new JSONObject(out.toString("UTF-8"));
-                if(!response.has("errno")||response.optInt("errno",-1)!=0)
-                    throw new IOException("Cloud operation rejected: "+response.optInt("errno",-1));
+                int error=response.optInt("errno",-1);
+                if(error==4000023||error==450016)
+                    throw new ExpiredCloudJsToken(error);
+                if(error!=0)
+                    throw new IOException("Cloud operation rejected: "+error);
                 if(response.optJSONObject("info")!=null&&
                    response.getJSONObject("info").optInt("errno",0)!=0)
                     throw new IOException("Cloud operation reported nested failure");
@@ -777,6 +918,23 @@ public final class FgTeraboxClient {
             while((n=input.read(bytes))>=0)output.write(bytes,0,n);
         }
     }
+    /**
+     * Only provider metadata determines a missing TeraBox preview. A provider
+     * placeholder returned as a valid image is NOT automatically diagnosed as
+     * restricted; the owner can flag those through Rounder's file actions.
+     * An absent HTTPS thumbnail is an observable, accurate condition.
+     */
+    public static boolean previewUnavailable(JSONObject source){
+        if(source==null||source.optInt("isdir",0)!=0||
+           !image(source.optString("server_filename","")))return false;
+        JSONObject urls=source.optJSONObject("thumbs");
+        if(urls==null)return true;
+        for(String key:new String[]{"url1","url2","url3"}){
+            String value=urls.optString(key,"");
+            if(value.startsWith("https://"))return false;
+        }
+        return true;
+    }
     public static JSONObject mapEntry(JSONObject source) throws Exception{
         String name=source.optString("server_filename","");
         String path=source.optString("path","");
@@ -789,6 +947,7 @@ public final class FgTeraboxClient {
             .put("size",size).put("modified",modified)
             .put("mime",folder?"vnd.android.document/directory":typeFor(name))
             .put("uri","fgterabox://file/"+Uri.encode(path))
-            .put("terabox",true);
+            .put("terabox",true)
+            .put("previewUnavailable",!folder&&previewUnavailable(source));
     }
 }
