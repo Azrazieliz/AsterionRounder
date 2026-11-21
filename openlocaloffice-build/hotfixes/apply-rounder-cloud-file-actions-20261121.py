@@ -24,7 +24,7 @@ java_methods=r'''
         if(name==null||name.isBlank()||name.length()>240||
            name.equals(".")||name.equals("..")||name.contains("/")||
            name.contains("\\")||name.indexOf('\n')>=0||
-           name.indexOf('\r')>=0||name.indexOf('\u0000')>=0)
+           name.indexOf('\r')>=0||name.indexOf((char)0)>=0)
             throw new IllegalArgumentException("Invalid TeraBox file name");
         return name;
     }
@@ -238,7 +238,7 @@ js_helpers=r'''
    fileAction(sheet,'Cancel','',closeFileActions);
    fileAction(sheet,'Confirm','No existing files will be overwritten',()=>{
      const name=input.value.trim();
-     if(!name||name==='.'||name==='..'||/[/\\\r\n]/.test(name))return;
+     if(!name||name==='.'||name==='..'||name.includes('/')||       name.includes(String.fromCharCode(92))||name.includes(String.fromCharCode(10))||       name.includes(String.fromCharCode(13)))return;
      if(action==='rename'&&name===initial)return;
      closeFileActions();
      bridge()?.cloudFileOperation?.(action,source,name);
@@ -331,9 +331,10 @@ j=insert_once(j,"  if(!cloudMode&&!bridge()?.getLibraryRoot?.())",
     "  cloudFolderButton.hidden=!cloudMode;\n", "cloud new folder button visibility")
 j=insert_once(j,"  if(cloudMode && !bridge()?.getTeraboxConfigured?.())",
     "  cloudFolderButton.hidden=!cloudMode;\n", "cloud new folder on request")
-j=insert_once(j,"window.FileGestionerLibrary={",
-              "window.FileGestionerLibrary={\n  cloudFolderChoices,\n",
-              "public cloud folder selection callback")
+if j.count("window.FileGestionerLibrary={")!=1:
+    raise AssertionError("cloud folder callback anchor changed")
+j=j.replace("window.FileGestionerLibrary={",
+            "window.FileGestionerLibrary={\n  cloudFolderChoices,",1)
 # A metadata refresh after any actual cloud modification must not reuse a
 # 15-minute cached page or old same-collection cards.
 old="if(result.ok&&['rename','delete','move','copy'].includes(result.operation))request();"
