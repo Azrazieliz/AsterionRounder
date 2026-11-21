@@ -503,6 +503,19 @@ jobs:
           grep -Fq 'fg-lib-more{' app/src/main/assets/style.css
           grep -Fq 'fg-image-toolbar-hidden' app/src/main/assets/style.css
 
+      - name: Enforce exactly two Rounder columns and contained folder controls
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-strict-two-columns-20261121.py
+          python3 ../hotfixes/apply-rounder-strict-two-columns-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'const columns=2;' app/src/main/assets/premium-library.js
+          grep -Fq 'rowHeight=140;' app/src/main/assets/premium-library.js
+          grep -Fq 'grid-template-columns:repeat(2,minmax(0,1fr))!important;' app/src/main/assets/style.css
+          grep -Fq 'fg-vault-folder-actions' app/src/main/assets/premium-library.js
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
