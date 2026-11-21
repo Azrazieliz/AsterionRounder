@@ -12,9 +12,11 @@ for(const v of [
  'scope TEXT NOT NULL','cloud.listPageCached(task.path,task.page)',
  'FgTeraboxClient.mapEntry(raw)','while((task=next(db,scope,generation))!=null)',
  'UPDATE pending SET page=?','DELETE FROM pending WHERE scope=?',
- 'SELECT path,name,kind,folder,size,modified,parent,listing_page FROM objects',
- 'AND needle LIKE ?','LIMIT ? OFFSET ?','"searchPath"','Uri.encode(path)',
+ 'SELECT o.path,o.name,o.kind,o.folder,o.size,o.modified,o.parent,o.listing_page',
+ 'AND o.needle LIKE ?','LIMIT ? OFFSET ?','"searchPath"','Uri.encode(path)',
  'cloud.metadataScope()','String.valueOf(e.getMessage())',
+ 'LEFT JOIN preview_marks mark','o.preview_missing',
+ 'CREATE TABLE preview_marks','FgTeraboxClient.previewUnavailable(raw)',
  'return value.replace(','public void clear()'
 ])assert(code.includes(v),'Cloud index lacks '+v);
 for(const v of [
