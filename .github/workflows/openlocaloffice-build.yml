@@ -460,6 +460,21 @@ jobs:
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-video-gallery-20261119.cjs
 
+      - name: Enable authenticated TeraBox rename move copy delete and new folders
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          python3 ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'public void renameCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void transferCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void deleteCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void createCloudFolder(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'cloudFileOperation(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'cloudFolderChoices' app/src/main/assets/premium-library.js
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
