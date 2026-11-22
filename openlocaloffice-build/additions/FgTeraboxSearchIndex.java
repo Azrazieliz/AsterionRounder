@@ -125,9 +125,9 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         // Names of a disconnected/replaced account must not remain searchable.
         db.beginTransactionNonExclusive();
         try{
-            db.execSQL("DELETE FROM objects WHERE scope<>?",new Object[]{scope});
-            db.execSQL("DELETE FROM pending WHERE scope<>?",new Object[]{scope});
-            db.execSQL("DELETE FROM accounts WHERE scope<>?",new Object[]{scope});
+            db.execSQL("DELETE FROM objects WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
+            db.execSQL("DELETE FROM pending WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
+            db.execSQL("DELETE FROM accounts WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
             db.execSQL("DELETE FROM preview_marks WHERE scope<>?",new Object[]{scope});
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
@@ -233,6 +233,99 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
     }
+
+    /**
+     * A selected folder gets a dedicated, persisted snapshot in this existing
+     * metadata index. It reuses the same pending-page queue and writePage()
+     * traversal as whole-account search, but never waits for a 300K-file scan.
+     * The inventory scope is private SQLite metadata, never a cloud credential.
+     */
+    private static String inventoryKey(String scope,String folder){
+        return "inventory:"+scope+"|"+folder;
+    }
+
+    public String inventoryScope(String folder) {
+        String account=connectedScope();
+        if(account.isEmpty()||folder==null||!folder.startsWith("/")||
+                folder.contains("\\")||folder.contains("/../")||
+                folder.endsWith("/..")||folder.contains("\n")||folder.contains("\r"))
+            throw new IllegalArgumentException("Inventory folder/account unavailable");
+        return inventoryKey(account,folder);
+    }
+
+    public void ensureInventory(String folder,boolean force) {
+        String account=connectedScope();
+        if(account.isEmpty())throw new IllegalStateException("TeraBox account not connected");
+        String scoped=inventoryScope(folder);
+        if(!force&&System.currentTimeMillis()<retryAfter.getOrDefault(scoped,0L))return;
+        if(!running.add(scoped))return;
+        scanner.execute(()->{
+            try{
+                scanInventory(account,scoped,folder,force);
+                retryAfter.remove(scoped);
+            }catch(Exception failure){
+                android.util.Log.w("FG_CLOUD_INVENTORY",
+                    "Folder index incomplete: "+failure.getClass().getSimpleName());
+                retryAfter.put(scoped,System.currentTimeMillis()+15000L);
+                try{
+                    getWritableDatabase().execSQL(
+                        "UPDATE accounts SET error=? WHERE scope=?",
+                        new Object[]{String.valueOf(failure.getMessage()),scoped});
+                }catch(Exception ignored){}
+            }finally{running.remove(scoped);}
+        });
+    }
+
+    private void scanInventory(String account,String scoped,String root,boolean force)
+            throws Exception {
+        if(!account.equals(connectedScope()))
+            throw new java.io.IOException("TeraBox account changed");
+        SQLiteDatabase db=getWritableDatabase();
+        State existing=state(db,scoped);
+        if(!force&&existing.active>0&&existing.building==0)return;
+        int generation=existing.building;
+        if(force||generation==0){
+            generation=Math.max(existing.active,existing.building)+1;
+            db.beginTransactionNonExclusive();
+            try{
+                // Stale snapshots from other grants/accounts must not remain.
+                for(String table:new String[]{"objects","pending","accounts"}){
+                    db.execSQL("DELETE FROM "+table+
+                        " WHERE scope LIKE 'inventory:%' AND scope<>?",
+                        new Object[]{scoped});
+                }
+                db.execSQL("INSERT OR REPLACE INTO accounts"+
+                    "(scope,active,building,indexed,error) VALUES(?,?,?,?,NULL)",
+                    new Object[]{scoped,existing.active,generation,0});
+                db.execSQL("DELETE FROM pending WHERE scope=?",new Object[]{scoped});
+                db.execSQL("INSERT INTO pending(scope,generation,path,page)"+
+                    " VALUES(?,?,?,1)",new Object[]{scoped,generation,root});
+                db.setTransactionSuccessful();
+            }finally{db.endTransaction();}
+        }
+        Task task;
+        while((task=next(db,scoped,generation))!=null){
+            if(!account.equals(connectedScope()))
+                throw new java.io.IOException("TeraBox account changed during export");
+            // Use actual native TeraBox page listing, not a stale media cache.
+            JSONArray page=cloud.listPage(task.path,task.page);
+            if(page==null)throw new java.io.IOException("Cloud page unavailable");
+            writePage(db,scoped,generation,task,page);
+        }
+        if(!account.equals(connectedScope()))
+            throw new java.io.IOException("TeraBox account changed during export");
+        db.beginTransactionNonExclusive();
+        try{
+            db.execSQL("UPDATE accounts SET active=?,building=0,error=NULL"+
+                " WHERE scope=?",new Object[]{generation,scoped});
+            db.execSQL("DELETE FROM objects WHERE scope=? AND generation<>?",
+                new Object[]{scoped,generation});
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
+        android.util.Log.i("FG_CLOUD_INVENTORY",
+            "Selected-folder metadata index completed");
+    }
+
     private static String category(String name) {
         String n=name.toLowerCase(Locale.ROOT);
         if(n.matches(".*\\.(cbz|cbr)$"))return "comic";
