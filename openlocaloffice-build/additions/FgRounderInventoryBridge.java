@@ -182,10 +182,17 @@ public final class FgRounderInventoryBridge extends ContentProvider {
            after.length()>4096 || (!after.isEmpty() && !after.startsWith(
                 "/".equals(a.root)?"/":a.root+"/")))
             throw new IllegalArgumentException("Invalid inventory page request");
-        JSONObject current=state(ctx,a);
-        if(!"completed".equals(current.optString("status")) ||
-            current.optInt("generation")!=generation)
-            throw new IllegalStateException("Index changed or scan is not complete; restart export");
+        // A page must not recount the entire account (300K+ items) on every call.
+        // Only the active completed generation may be exported.
+        try(SQLiteDatabase check=SQLiteDatabase.openDatabase(
+                ctx.getDatabasePath(ACCOUNT_DB).getPath(),null,SQLiteDatabase.OPEN_READONLY);
+            Cursor ready=check.rawQuery(
+                "SELECT active,building,error FROM accounts WHERE scope=?",
+                new String[]{a.scope})){
+            if(!ready.moveToFirst() || ready.getInt(0)!=generation ||
+               ready.getInt(1)!=0 || !ready.isNull(2))
+                throw new IllegalStateException("Index changed or scan is not complete; restart export");
+        }
         JSONArray rows=new JSONArray(); StringBuilder csv=new StringBuilder();
         if("csv".equals(format) && after.isEmpty())
             csv.append("path,parent,name,type,folder,size,modified,md5\n");
@@ -210,8 +217,11 @@ public final class FgRounderInventoryBridge extends ContentProvider {
                     cursor.getInt(4)+","+cursor.getLong(5)+","+cursor.getLong(6)+","+
                     csvQuote(cursor.isNull(7)?"":cursor.getString(7))+"\n";
                 // Account for enveloping metadata, escaping, and Controller's 8KB ceiling.
-                int bytes=("csv".equals(format)?csv.length()+record.length():
-                        rows.toString().length()+item.toString().length())+1200;
+                int bytes=("csv".equals(format)?
+                    csv.toString().getBytes(StandardCharsets.UTF_8).length+
+                        record.getBytes(StandardCharsets.UTF_8).length:
+                    rows.toString().getBytes(StandardCharsets.UTF_8).length+
+                        item.toString().getBytes(StandardCharsets.UTF_8).length)+1200;
                 if(bytes>MAX_RESPONSE_BYTES) {
                     if(rows.length()==0 && csv.length()<100)
                         throw new IllegalStateException("Indexed path exceeds safe transport limit");
