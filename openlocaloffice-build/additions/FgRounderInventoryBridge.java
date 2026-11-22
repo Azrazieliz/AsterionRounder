@@ -37,30 +37,26 @@ public final class FgRounderInventoryBridge extends ContentProvider {
     private static final Object LOCK = new Object();
     private static volatile FgTeraboxSearchIndex index;
 
-    public static void grant(Context context, FgTeraboxClient cloud, String folder) {
+    public static void grant(Context context, FgTeraboxClient cloud, String folder)
+            throws Exception {
         String root = validFolder(folder);
         if (!cloud.configured() || cloud.metadataScope().isEmpty())
             throw new IllegalStateException("Connect TeraBox first");
-        // A Rounder user explicitly selects a single existing folder in the native library.
-        boolean exists = "/".equals(root);
-        if (!exists) {
-            try (SQLiteDatabase db = SQLiteDatabase.openDatabase(
-                    context.getDatabasePath(ACCOUNT_DB).getPath(), null,
-                    SQLiteDatabase.OPEN_READONLY);
-                 Cursor c = db.rawQuery(
-                    "SELECT 1 FROM objects WHERE scope=? AND path=? AND folder=1 LIMIT 1",
-                    new String[]{cloud.metadataScope(), root})) {
-                exists = c.moveToFirst();
-            } catch (Exception unavailable) {
-                throw new IllegalStateException("Index the TeraBox folder first");
-            }
-        }
-        if (!exists) throw new IllegalArgumentException("Selected folder is not indexed");
+        String account=cloud.metadataScope();
+        // The owner has selected this folder in Rounder's authenticated browser.
+        // Verify its actual cloud listing, not a possibly-incomplete global index.
+        // An empty folder is valid. No file contents are opened or downloaded.
+        cloud.listPage(root,1);
+        if(!account.equals(cloud.metadataScope()))
+            throw new IllegalStateException("TeraBox account changed during approval");
         long until = System.currentTimeMillis() + ACCESS_MS;
         if (!context.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE).edit()
-                .putString("scope",cloud.metadataScope()).putString("root",root)
+                .putString("scope",account).putString("root",root)
                 .putLong("expiry",until).commit())
             throw new IllegalStateException("Could not save owner approval");
+        // A dedicated snapshot of just this subtree uses the existing search
+        // index's durable page queue; no full-account scan prerequisite.
+        index(context,cloud).ensureInventory(root,true);
     }
 
     public static void revoke(Context context) {
@@ -101,6 +97,10 @@ public final class FgRounderInventoryBridge extends ContentProvider {
         if(!CONTROL_CERT.equals(s.toString())) throw new SecurityException("Unrecognized Control signer");
     }
 
+    private static String inventoryScope(String account,String root){
+        return "inventory:"+account+"|"+root;
+    }
+
     private static final class Approval {
         final String scope,root;
         Approval(String s,String r){scope=s;root=r;}
@@ -131,7 +131,7 @@ public final class FgRounderInventoryBridge extends ContentProvider {
         try(SQLiteDatabase db=SQLiteDatabase.openDatabase(
                 ctx.getDatabasePath(ACCOUNT_DB).getPath(),null,SQLiteDatabase.OPEN_READONLY);
             Cursor c=db.rawQuery("SELECT active,building,indexed,error FROM accounts WHERE scope=?",
-                    new String[]{approval.scope})){
+                    new String[]{inventoryScope(approval.scope,approval.root)})){
             if(c.moveToFirst()){
                 active=c.getInt(0);building=c.getInt(1);indexed=c.getLong(2);
                 error=c.isNull(3)?"":c.getString(3);
@@ -144,17 +144,17 @@ public final class FgRounderInventoryBridge extends ContentProvider {
             .put("account_fingerprint",accountFingerprint(approval.scope))
             .put("indexed",indexed).put("index_building",building!=0)
             .put("index_error",error);
-        if(building!=0||active==0)
-            return reply.put("status","accepted").put("reason","index_not_complete");
         if(!error.isEmpty())
             return reply.put("status","failed").put("reason","index_error");
+        if(building!=0||active==0)
+            return reply.put("status","accepted").put("reason","index_not_complete");
         String like=likePrefix(approval.root);
         try(SQLiteDatabase db=SQLiteDatabase.openDatabase(
                 ctx.getDatabasePath(ACCOUNT_DB).getPath(),null,SQLiteDatabase.OPEN_READONLY);
             Cursor c=db.rawQuery(
                 "SELECT COUNT(*),COALESCE(SUM(folder),0),COALESCE(SUM(CASE WHEN folder=0 THEN size ELSE 0 END),0) "
                 +"FROM objects WHERE scope=? AND generation=? AND path LIKE ? ESCAPE '\\'",
-                new String[]{approval.scope,Integer.toString(active),like})){
+                new String[]{inventoryScope(approval.scope,approval.root),Integer.toString(active),like})){
             c.moveToFirst();
             return reply.put("status","completed").put("generation",active)
                 .put("entries",c.getLong(0)).put("folders",c.getLong(1))
@@ -198,7 +198,7 @@ public final class FgRounderInventoryBridge extends ContentProvider {
                 ctx.getDatabasePath(ACCOUNT_DB).getPath(),null,SQLiteDatabase.OPEN_READONLY);
             Cursor ready=check.rawQuery(
                 "SELECT active,building,error FROM accounts WHERE scope=?",
-                new String[]{a.scope})){
+                new String[]{inventoryScope(a.scope,a.root)})){
             if(!ready.moveToFirst() || ready.getInt(0)!=generation ||
                ready.getInt(1)!=0 || !ready.isNull(2))
                 throw new IllegalStateException("Index changed or scan is not complete; restart export");
@@ -214,7 +214,7 @@ public final class FgRounderInventoryBridge extends ContentProvider {
                 "SELECT path,parent,name,kind,folder,size,modified,checksum FROM objects "+
                 "WHERE scope=? AND generation=? AND path LIKE ? ESCAPE '\\' AND path>? "+
                 "ORDER BY path LIMIT "+PAGE_QUERY_LIMIT,
-                new String[]{a.scope,Integer.toString(generation),likePrefix(a.root),after})){
+                new String[]{inventoryScope(a.scope,a.root),Integer.toString(generation),likePrefix(a.root),after})){
             while(cursor.moveToNext()){
                 String path=cursor.getString(0);
                 JSONObject item=new JSONObject().put("path",path)
@@ -257,7 +257,7 @@ public final class FgRounderInventoryBridge extends ContentProvider {
         FgTeraboxClient cloud=new FgTeraboxClient(ctx);
         Approval a=approval(ctx,cloud);
         if("rounder.inventory.meta".equals(action)){
-            index(ctx,cloud).ensure(false);
+            index(ctx,cloud).ensureInventory(a.root,false);
             return state(ctx,a);
         }
         if("rounder.inventory.page".equals(action))return page(ctx,a,payload);
