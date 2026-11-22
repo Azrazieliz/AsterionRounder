@@ -516,6 +516,18 @@ jobs:
           grep -Fq 'grid-template-columns:repeat(2,minmax(0,1fr))!important;' app/src/main/assets/style.css
           grep -Fq 'fg-vault-folder-actions' app/src/main/assets/premium-library.js
 
+      - name: Wire signed Asterion Control inventory and enforce privacy
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderInventoryBridge.java app/src/main/java/com/openlocal/office/core/FgRounderInventoryBridge.java
+          python3 -m py_compile ../hotfixes/apply-rounder-control-inventory-20261122.py
+          python3 ../hotfixes/apply-rounder-control-inventory-20261122.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-control-inventory-20261122.cjs
+          grep -Fq 'android:authorities="com.openlocal.office.asterion.bridge"' app/src/main/AndroidManifest.xml
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
