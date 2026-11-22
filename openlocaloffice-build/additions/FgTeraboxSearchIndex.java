@@ -36,19 +36,21 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
     private volatile long lastProgressMs=0;
 
     public FgTeraboxSearchIndex(Context context,FgTeraboxClient cloud,Listener listener) {
-        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,2);
+        super(context.getApplicationContext(),"rounder-terabox-search-v1.db",null,3);
         this.cloud=cloud;
         this.listener=listener;
         setWriteAheadLoggingEnabled(true);
     }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE accounts (scope TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 0, building INTEGER NOT NULL DEFAULT 0, indexed INTEGER NOT NULL DEFAULT 0, error TEXT)");
-        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, checksum TEXT, listing_page INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,generation,path))");
+        db.execSQL("CREATE TABLE objects (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, name TEXT NOT NULL, needle TEXT NOT NULL, kind TEXT NOT NULL, folder INTEGER NOT NULL, size INTEGER, modified INTEGER, parent TEXT NOT NULL, checksum TEXT, listing_page INTEGER NOT NULL DEFAULT 1, preview_missing INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(scope,generation,path))");
         db.execSQL("CREATE INDEX objects_lookup ON objects(scope,generation,needle)");
         db.execSQL("CREATE INDEX objects_type ON objects(scope,generation,kind)");
         db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
         db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
         db.execSQL("CREATE TABLE pending (scope TEXT NOT NULL, generation INTEGER NOT NULL, path TEXT NOT NULL, page INTEGER NOT NULL, PRIMARY KEY(scope,generation,path))");
+        db.execSQL("CREATE INDEX objects_preview ON objects(scope,generation,kind,preview_missing)");
+        db.execSQL("CREATE TABLE preview_marks (scope TEXT NOT NULL, path TEXT NOT NULL, marked INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,path))");
     }
     @Override public void onUpgrade(SQLiteDatabase db,int oldVersion,int newVersion){
         if(oldVersion<2){
@@ -56,6 +58,16 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE objects ADD COLUMN listing_page INTEGER NOT NULL DEFAULT 1");
             db.execSQL("CREATE INDEX objects_exact ON objects(scope,generation,checksum,size)");
             db.execSQL("CREATE INDEX objects_candidates ON objects(scope,generation,needle,size)");
+        }
+        if(oldVersion<3){
+            db.execSQL("ALTER TABLE objects ADD COLUMN preview_missing INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("CREATE INDEX objects_preview ON objects(scope,generation,kind,preview_missing)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS preview_marks (scope TEXT NOT NULL, path TEXT NOT NULL, marked INTEGER NOT NULL DEFAULT 1, PRIMARY KEY(scope,path))");
+            // Old indexed rows lack preview metadata: rebuild once from listing
+            // metadata only. No cloud files are opened or modified.
+            db.execSQL("DELETE FROM objects");
+            db.execSQL("DELETE FROM pending");
+            db.execSQL("UPDATE accounts SET active=0,building=0,indexed=0,error=NULL");
         }
     }
     private static final class State {
@@ -113,9 +125,10 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         // Names of a disconnected/replaced account must not remain searchable.
         db.beginTransactionNonExclusive();
         try{
-            db.execSQL("DELETE FROM objects WHERE scope<>?",new Object[]{scope});
-            db.execSQL("DELETE FROM pending WHERE scope<>?",new Object[]{scope});
-            db.execSQL("DELETE FROM accounts WHERE scope<>?",new Object[]{scope});
+            db.execSQL("DELETE FROM objects WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
+            db.execSQL("DELETE FROM pending WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
+            db.execSQL("DELETE FROM accounts WHERE scope<>? AND scope NOT LIKE 'inventory:%'",new Object[]{scope});
+            db.execSQL("DELETE FROM preview_marks WHERE scope<>?",new Object[]{scope});
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
         State s=state(db,scope);
@@ -162,7 +175,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         db.beginTransactionNonExclusive();
         try{
             SQLiteStatement put=db.compileStatement(
-                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page,preview_missing) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)");
             SQLiteStatement queue=db.compileStatement(
                 "INSERT OR IGNORE INTO pending(scope,generation,path,page) VALUES(?,?,?,1)");
             int admitted=0;
@@ -198,6 +211,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     if(digest.matches("[0-9a-f]{32}"))put.bindString(11,digest);
                     else put.bindNull(11);
                     put.bindLong(12,task.page);
+                    put.bindLong(13,FgTeraboxClient.previewUnavailable(raw)?1:0);
                     put.executeInsert();
                     admitted++;
                     if(folder){
@@ -219,6 +233,99 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
     }
+
+    /**
+     * A selected folder gets a dedicated, persisted snapshot in this existing
+     * metadata index. It reuses the same pending-page queue and writePage()
+     * traversal as whole-account search, but never waits for a 300K-file scan.
+     * The inventory scope is private SQLite metadata, never a cloud credential.
+     */
+    private static String inventoryKey(String scope,String folder){
+        return "inventory:"+scope+"|"+folder;
+    }
+
+    public String inventoryScope(String folder) {
+        String account=connectedScope();
+        if(account.isEmpty()||folder==null||!folder.startsWith("/")||
+                folder.contains("\\")||folder.contains("/../")||
+                folder.endsWith("/..")||folder.contains("\n")||folder.contains("\r"))
+            throw new IllegalArgumentException("Inventory folder/account unavailable");
+        return inventoryKey(account,folder);
+    }
+
+    public void ensureInventory(String folder,boolean force) {
+        String account=connectedScope();
+        if(account.isEmpty())throw new IllegalStateException("TeraBox account not connected");
+        String scoped=inventoryScope(folder);
+        if(!force&&System.currentTimeMillis()<retryAfter.getOrDefault(scoped,0L))return;
+        if(!running.add(scoped))return;
+        scanner.execute(()->{
+            try{
+                scanInventory(account,scoped,folder,force);
+                retryAfter.remove(scoped);
+            }catch(Exception failure){
+                android.util.Log.w("FG_CLOUD_INVENTORY",
+                    "Folder index incomplete: "+failure.getClass().getSimpleName());
+                retryAfter.put(scoped,System.currentTimeMillis()+15000L);
+                try{
+                    getWritableDatabase().execSQL(
+                        "UPDATE accounts SET error=? WHERE scope=?",
+                        new Object[]{String.valueOf(failure.getMessage()),scoped});
+                }catch(Exception ignored){}
+            }finally{running.remove(scoped);}
+        });
+    }
+
+    private void scanInventory(String account,String scoped,String root,boolean force)
+            throws Exception {
+        if(!account.equals(connectedScope()))
+            throw new java.io.IOException("TeraBox account changed");
+        SQLiteDatabase db=getWritableDatabase();
+        State existing=state(db,scoped);
+        if(!force&&existing.active>0&&existing.building==0&&existing.error.isEmpty())return;
+        int generation=existing.building;
+        if(force||generation==0){
+            generation=Math.max(existing.active,existing.building)+1;
+            db.beginTransactionNonExclusive();
+            try{
+                // Stale snapshots from other grants/accounts must not remain.
+                for(String table:new String[]{"objects","pending","accounts"}){
+                    db.execSQL("DELETE FROM "+table+
+                        " WHERE scope LIKE 'inventory:%' AND scope<>?",
+                        new Object[]{scoped});
+                }
+                db.execSQL("INSERT OR REPLACE INTO accounts"+
+                    "(scope,active,building,indexed,error) VALUES(?,?,?,?,NULL)",
+                    new Object[]{scoped,existing.active,generation,0});
+                db.execSQL("DELETE FROM pending WHERE scope=?",new Object[]{scoped});
+                db.execSQL("INSERT INTO pending(scope,generation,path,page)"+
+                    " VALUES(?,?,?,1)",new Object[]{scoped,generation,root});
+                db.setTransactionSuccessful();
+            }finally{db.endTransaction();}
+        }
+        Task task;
+        while((task=next(db,scoped,generation))!=null){
+            if(!account.equals(connectedScope()))
+                throw new java.io.IOException("TeraBox account changed during export");
+            // Use actual native TeraBox page listing, not a stale media cache.
+            JSONArray page=cloud.listPage(task.path,task.page);
+            if(page==null)throw new java.io.IOException("Cloud page unavailable");
+            writePage(db,scoped,generation,task,page);
+        }
+        if(!account.equals(connectedScope()))
+            throw new java.io.IOException("TeraBox account changed during export");
+        db.beginTransactionNonExclusive();
+        try{
+            db.execSQL("UPDATE accounts SET active=?,building=0,error=NULL"+
+                " WHERE scope=?",new Object[]{generation,scoped});
+            db.execSQL("DELETE FROM objects WHERE scope=? AND generation<>?",
+                new Object[]{scoped,generation});
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
+        android.util.Log.i("FG_CLOUD_INVENTORY",
+            "Selected-folder metadata index completed");
+    }
+
     private static String category(String name) {
         String n=name.toLowerCase(Locale.ROOT);
         if(n.matches(".*\\.(cbz|cbr)$"))return "comic";
@@ -248,15 +355,19 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     .put("error",s.error).put("offset",Math.max(0,offset));
                 JSONArray results=new JSONArray();
                 boolean more=false;
-                if(!scope.isEmpty()&&gen>0&&text!=null&&!text.trim().isEmpty()){
+                boolean affected="affected".equals(category);
+                if(!scope.isEmpty()&&gen>0&&text!=null&&
+                   (!text.trim().isEmpty()||affected)){
                     ArrayList<String> params=new ArrayList<>();
-                    String sql="SELECT path,name,kind,folder,size,modified,parent,listing_page FROM objects WHERE scope=? AND generation=? AND needle LIKE ? ESCAPE '\\'";
+                    String sql="SELECT o.path,o.name,o.kind,o.folder,o.size,o.modified,o.parent,o.listing_page,o.preview_missing,COALESCE(mark.marked,0) FROM objects o LEFT JOIN preview_marks mark ON mark.scope=o.scope AND mark.path=o.path WHERE o.scope=? AND o.generation=? AND o.needle LIKE ? ESCAPE '\\'";
                     params.add(scope);params.add(Integer.toString(gen));
                     params.add("%"+escapeLike(text.trim().toLowerCase(Locale.ROOT))+"%");
-                    if(category!=null&&!category.isEmpty()&&!category.equals("all")){
-                        sql+=" AND kind=?";params.add(category);
+                    if(affected){
+                        sql+=" AND o.kind='image' AND (o.preview_missing=1 OR COALESCE(mark.marked,0)=1)";
+                    }else if(category!=null&&!category.isEmpty()&&!category.equals("all")){
+                        sql+=" AND o.kind=?";params.add(category);
                     }
-                    sql+=" ORDER BY needle,path LIMIT ? OFFSET ?";
+                    sql+=" ORDER BY o.needle,o.path LIMIT ? OFFSET ?";
                     params.add(Integer.toString(LIMIT+1));
                     params.add(Integer.toString(Math.max(0,offset)));
                     try(Cursor cursor=getReadableDatabase().rawQuery(sql,params.toArray(new String[0]))){
@@ -274,8 +385,12 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                                 .put("terabox",true).put("indexedSearch",true)
                                 .put("uri","fgterabox://file/"+Uri.encode(path));
                             if("image".equals(cursor.getString(2))){
+                                boolean missing=cursor.getInt(8)!=0;
+                                boolean manual=cursor.getInt(9)!=0;
                                 item.put("cover",coverUrl(path,cursor.getInt(7)))
-                                    .put("remoteCover",true);
+                                    .put("remoteCover",true)
+                                    .put("previewUnavailable",missing)
+                                    .put("previewManuallyMarked",manual);
                             }
                             results.put(item);
                         }
@@ -346,7 +461,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         db.beginTransactionNonExclusive();
         try{
             SQLiteStatement put=db.compileStatement(
-                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+                "INSERT OR REPLACE INTO objects(scope,generation,path,name,needle,kind,folder,size,modified,parent,checksum,listing_page,preview_missing) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)");
             try{
                 for(int i=0;i<listing.length();i++){
                     JSONObject raw=listing.optJSONObject(i);
@@ -372,6 +487,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
                     if(checksum.matches("[0-9a-f]{32}"))put.bindString(11,checksum);
                     else put.bindNull(11);
                     put.bindLong(12,page);
+                    put.bindLong(13,FgTeraboxClient.previewUnavailable(raw)?1:0);
                     put.executeInsert();
                     touched++;
                 }
@@ -379,6 +495,72 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             db.setTransactionSuccessful();
         }finally{db.endTransaction();}
         return touched;
+    }
+    /** One private indexed lookup per page, never one SQLite query per image. */
+    public java.util.Set<String> markedForPage(JSONArray page){
+        java.util.Set<String> marked=new java.util.HashSet<>();
+        String scope=connectedScope();
+        if(scope.isEmpty()||page==null||page.length()==0)return marked;
+        java.util.ArrayList<String> args=new java.util.ArrayList<>();
+        args.add(scope);
+        StringBuilder sql=new StringBuilder(
+            "SELECT path FROM preview_marks WHERE scope=? AND path IN (");
+        for(int i=0;i<page.length()&&i<100;i++){
+            JSONObject row=page.optJSONObject(i);
+            String path=row==null?"":row.optString("path","");
+            if(!path.startsWith("/")||!FgTeraboxClient.image(path))continue;
+            if(args.size()>1)sql.append(',');
+            sql.append('?');args.add(path);
+        }
+        if(args.size()==1)return marked;
+        sql.append(')');
+        try(Cursor rows=getReadableDatabase().rawQuery(
+                sql.toString(),args.toArray(new String[0]))){
+            while(rows.moveToNext())marked.add(rows.getString(0));
+        }
+        return marked;
+    }
+    /** Fast indexed check for missing or manually reviewed provider previews. */
+    public boolean isPreviewAffected(String path){
+        String scope=connectedScope();
+        if(scope.isEmpty()||path==null||!path.startsWith("/")||
+           !FgTeraboxClient.image(path))return false;
+        try{
+            SQLiteDatabase db=getReadableDatabase();
+            try(Cursor manual=db.rawQuery(
+                    "SELECT 1 FROM preview_marks WHERE scope=? AND path=? LIMIT 1",
+                    new String[]{scope,path})){
+                if(manual.moveToFirst())return true;
+            }
+            State state=state(db,scope);
+            int generation=state.active>0?state.active:state.building;
+            if(generation==0)return false;
+            try(Cursor automatic=db.rawQuery(
+                    "SELECT preview_missing FROM objects WHERE scope=? AND generation=? AND path=? LIMIT 1",
+                    new String[]{scope,Integer.toString(generation),path})){
+                return automatic.moveToFirst()&&automatic.getInt(0)!=0;
+            }
+        }catch(Exception failure){
+            android.util.Log.w("FG_PREVIEW_FILTER","Preview flag lookup unavailable");
+            return false;
+        }
+    }
+
+    /** Keep user-reviewed placeholder flags private and scoped to this account. */
+    public void markPreview(String path,boolean affected)throws Exception{
+        String scope=connectedScope();
+        if(scope.isEmpty()||path==null||path.length()>8192||
+           !path.startsWith("/")||path.contains("\\")||
+           path.contains("/../")||path.endsWith("/..")||
+           !FgTeraboxClient.image(path))
+            throw new java.io.IOException("Invalid preview flag target");
+        SQLiteDatabase db=getWritableDatabase();
+        if(affected)db.execSQL(
+            "INSERT OR REPLACE INTO preview_marks(scope,path,marked) VALUES(?,?,1)",
+            new Object[]{scope,path});
+        else db.execSQL(
+            "DELETE FROM preview_marks WHERE scope=? AND path=?",
+            new Object[]{scope,path});
     }
     /** Metadata snapshot, never opens file contents. */
     public SQLiteDatabase metadata(){return getReadableDatabase();}
@@ -389,26 +571,67 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
         State state=state(getReadableDatabase(),scope);
         return state.active>0?state.active:state.building;
     }
-    /** Invalidate an indexed path only after remote deletion is confirmed. */
+    /** Keep recursive search accurate when a user deletes a folder tree. */
     public void noteDeleted(String expectedScope,String oldPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
-        getWritableDatabase().execSQL(
-            "DELETE FROM objects WHERE scope=? AND path=?",
-            new Object[]{expectedScope,oldPath});
+        if(oldPath==null||"/".equals(oldPath)||!oldPath.startsWith("/"))return;
+        SQLiteDatabase db=getWritableDatabase();
+        db.beginTransactionNonExclusive();
+        try{
+            String where="scope=? AND (path=? OR "+
+                "(substr(path,1,length(?))=? AND "+
+                "substr(path,length(?)+1,1)='/'))";
+            Object[] args=new Object[]{expectedScope,oldPath,oldPath,oldPath,oldPath};
+            db.execSQL("DELETE FROM objects WHERE "+where,args);
+            db.execSQL("DELETE FROM preview_marks WHERE "+where,args);
+            db.execSQL("DELETE FROM pending WHERE "+where,args);
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
     }
+    /** Update cloud folder descendants without leaving old indexed paths behind. */
     public void noteMoved(String expectedScope,String oldPath,String newPath){
         if(expectedScope==null||!expectedScope.equals(connectedScope()))return;
+        if(oldPath==null||newPath==null||"/".equals(oldPath)||
+           !oldPath.startsWith("/")||!newPath.startsWith("/"))return;
         SQLiteDatabase db=getWritableDatabase();
         String parent=newPath.substring(0,newPath.lastIndexOf('/'));
         if(parent.isEmpty())parent="/";
-        db.execSQL("UPDATE objects SET path=?,parent=? WHERE scope=? AND path=?",
-            new Object[]{newPath,parent,expectedScope,oldPath});
+        String name=newPath.substring(newPath.lastIndexOf('/')+1);
+        String childWhere="scope=? AND substr(path,1,length(?))=? AND "+
+            "substr(path,length(?)+1,1)='/'";
+        db.beginTransactionNonExclusive();
+        try{
+            // SQL expressions use original row values; descendants first
+            // avoids temporarily hiding them behind a renamed parent.
+            db.execSQL("UPDATE objects SET "+
+                "path=? || substr(path,length(?)+1),"+
+                "parent=CASE WHEN parent=? THEN ? ELSE "+
+                "? || substr(parent,length(?)+1) END WHERE "+childWhere,
+                new Object[]{newPath,oldPath,oldPath,newPath,
+                    newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE objects SET path=?,parent=?,name=?,needle=? "+
+                "WHERE scope=? AND path=?",
+                new Object[]{newPath,parent,name,name.toLowerCase(Locale.ROOT),
+                    expectedScope,oldPath});
+            db.execSQL("UPDATE preview_marks SET "+
+                "path=? || substr(path,length(?)+1) WHERE "+childWhere,
+                new Object[]{newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE preview_marks SET path=? WHERE scope=? AND path=?",
+                new Object[]{newPath,expectedScope,oldPath});
+            db.execSQL("UPDATE pending SET "+
+                "path=? || substr(path,length(?)+1) WHERE "+childWhere,
+                new Object[]{newPath,oldPath,expectedScope,oldPath,oldPath,oldPath});
+            db.execSQL("UPDATE pending SET path=? WHERE scope=? AND path=?",
+                new Object[]{newPath,expectedScope,oldPath});
+            db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
     }
     public void clear(){
         try{
             SQLiteDatabase db=getWritableDatabase();
             db.execSQL("DELETE FROM objects");db.execSQL("DELETE FROM pending");
             db.execSQL("DELETE FROM accounts");
+            db.execSQL("DELETE FROM preview_marks");
         }catch(Exception ignored){}
     }
 }

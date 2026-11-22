@@ -12,7 +12,7 @@ on:
 
 # Only the newest commit on a PR consumes the Android emulator.
 concurrency:
-  group: rounder-preserve-existing-cards-v23-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: rounder-video-preview-v2-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -425,6 +425,108 @@ jobs:
           set -euo pipefail
           node --check app/src/main/assets/premium-library.js
           node ../hotfixes/test-rounder-scroll-stability-20261112.cjs
+
+      - name: Generate image previews from authenticated originals, including animated GIFs
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderOriginalPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderOriginalPreviews.java
+          python3 -m py_compile ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-original-gif-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+
+      - name: Index and filter affected TeraBox previews without provider thumbnail dependency
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-affected-previews-20261114.py
+          python3 ../hotfixes/apply-rounder-affected-previews-20261114.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-original-gif-previews-20261114.cjs
+          node ../hotfixes/test-rounder-affected-previews-20261114.cjs
+
+
+      - name: Restore two-wide video galleries and genuine lazy video thumbnails
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderVideoPreviews.java app/src/main/java/com/openlocal/office/core/FgRounderVideoPreviews.java
+          python3 -m py_compile ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          python3 ../hotfixes/repair-rounder-video-thumbnails-grid-20261119.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-video-gallery-20261119.cjs
+
+      - name: Enable authenticated TeraBox rename move copy delete and new folders
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          python3 ../hotfixes/apply-rounder-cloud-file-actions-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'public void renameCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void transferCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void deleteCloud(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'public void createCloudFolder(' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+          grep -Fq 'cloudFileOperation(' app/src/main/java/com/openlocal/office/MainActivity.java
+          grep -Fq 'cloudFolderChoices' app/src/main/assets/premium-library.js
+
+      - name: Repair broken TeraBox folder previews and intrusive reader overlay
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/repair-rounder-cloud-folders-image-toolbar-20261121.py
+          python3 ../hotfixes/repair-rounder-cloud-folders-image-toolbar-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          node --check app/src/main/assets/reader-controls.js
+          grep -Fq 'fg-image-toolbar-collapsed' app/src/main/assets/reader-controls.js
+          grep -Fq 'fg-vault-folder-row' app/src/main/assets/premium-library.js
+          grep -Fq 'fg-rounder-library-visible' app/src/main/assets/style.css
+          grep -Fq 'WRITE_BASES' app/src/main/java/com/openlocal/office/core/FgTeraboxClient.java
+
+      - name: Complete Rounder premium UI and immersive image navigation
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-premium-ux-20261121.py
+          python3 ../hotfixes/apply-rounder-premium-ux-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          node --check app/src/main/assets/reader-controls.js
+          grep -Fq 'imageNavTimer' app/src/main/assets/reader-controls.js
+          grep -Fq 'fg-vault-folderrail{' app/src/main/assets/style.css
+          grep -Fq 'fg-lib-more{' app/src/main/assets/style.css
+          grep -Fq 'fg-image-toolbar-hidden' app/src/main/assets/style.css
+
+      - name: Enforce exactly two Rounder columns and contained folder controls
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ../hotfixes/apply-rounder-strict-two-columns-20261121.py
+          python3 ../hotfixes/apply-rounder-strict-two-columns-20261121.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'const columns=2;' app/src/main/assets/premium-library.js
+          grep -Fq 'rowHeight=140;' app/src/main/assets/premium-library.js
+          grep -Fq 'grid-template-columns:repeat(2,minmax(0,1fr))!important;' app/src/main/assets/style.css
+          grep -Fq 'fg-vault-folder-actions' app/src/main/assets/premium-library.js
+
+      - name: Wire signed Asterion Control inventory and enforce privacy
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../additions/FgRounderInventoryBridge.java app/src/main/java/com/openlocal/office/core/FgRounderInventoryBridge.java
+          python3 -m py_compile ../hotfixes/apply-rounder-control-inventory-20261122.py
+          python3 ../hotfixes/apply-rounder-control-inventory-20261122.py
+          node --check app/src/main/assets/premium-library.js
+          node ../hotfixes/test-rounder-control-inventory-20261122.cjs
+          grep -Fq 'android:authorities="com.openlocal.office.asterion.bridge"' app/src/main/AndroidManifest.xml
 
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
