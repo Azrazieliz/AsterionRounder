@@ -141,6 +141,7 @@ public final class FgRounderInventoryBridge extends ContentProvider {
                 .put("reason","index_initializing");
         }
         JSONObject reply=new JSONObject().put("root",approval.root)
+            .put("account_fingerprint",accountFingerprint(approval.scope))
             .put("indexed",indexed).put("index_building",building!=0)
             .put("index_error",error);
         if(building!=0||active==0)
@@ -162,6 +163,15 @@ public final class FgRounderInventoryBridge extends ContentProvider {
                 .put("format_options",new JSONArray().put("json").put("csv"))
                 .put("complete_for_index_generation",true);
         }
+    }
+
+    /** Irreversible account marker; never return the actual private scope or cookie. */
+    private static String accountFingerprint(String scope) throws Exception {
+        byte[] hash=MessageDigest.getInstance("SHA-256").digest(
+            scope.getBytes(StandardCharsets.UTF_8));
+        StringBuilder out=new StringBuilder();
+        for(int i=0;i<12;i++)out.append(String.format(Locale.US,"%02x",hash[i]&255));
+        return out.toString();
     }
 
     private static String likePrefix(String root) {
@@ -232,7 +242,8 @@ public final class FgRounderInventoryBridge extends ContentProvider {
             if(cursor.getCount()==PAGE_QUERY_LIMIT)more=true;
         }
         JSONObject response=new JSONObject().put("status","completed")
-            .put("root",a.root).put("generation",generation)
+            .put("root",a.root).put("account_fingerprint",accountFingerprint(a.scope))
+            .put("generation",generation)
             .put("count",rows.length()).put("next_after",next).put("has_more",more)
             .put("format",format);
         if("csv".equals(format))response.put("csv",csv.toString());
