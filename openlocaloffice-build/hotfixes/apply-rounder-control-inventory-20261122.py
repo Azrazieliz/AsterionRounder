@@ -20,15 +20,18 @@ def insert_once(src, anchor, addition, label):
 java = main.read_text(encoding="utf-8")
 java = insert_once(java, "        @JavascriptInterface public void searchTeraboxIndex(",
 '''        @JavascriptInterface public void allowControlInventory(String cloudFolder){
-            try{
-                com.openlocal.office.core.FgRounderInventoryBridge.grant(
-                    MainActivity.this,tb(),cloudFolder);
-                reportLibraryAction("inventory",true,
-                    "Control may read this selected folder's metadata for 30 minutes");
-            }catch(Exception error){
-                reportLibraryAction("inventory",false,
-                    error.getMessage()==null?"Cannot share folder inventory":error.getMessage());
-            }
+            // Never block WebView UI while verifying the selected TeraBox folder.
+            fgDirectoryExecutor.execute(()->{
+                try{
+                    com.openlocal.office.core.FgRounderInventoryBridge.grant(
+                        MainActivity.this,tb(),cloudFolder);
+                    reportLibraryAction("inventory",true,
+                        "Control access enabled for 30 minutes; selected-folder scan started");
+                }catch(Exception error){
+                    reportLibraryAction("inventory",false,
+                        error.getMessage()==null?"Cannot share folder inventory":error.getMessage());
+                }
+            });
         }
         @JavascriptInterface public void revokeControlInventory(){
             try{

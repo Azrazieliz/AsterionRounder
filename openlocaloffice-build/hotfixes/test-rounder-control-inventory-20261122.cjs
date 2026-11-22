@@ -16,7 +16,13 @@ assert(bridge.includes('ACCESS_MS = 30L * 60L * 1000L'), 'Approval must expire')
 assert(bridge.includes('rounder.inventory.meta') && bridge.includes('rounder.inventory.page'));
 assert(bridge.includes('asterion.v1.capabilities'), 'Capability discovery required');
 assert(bridge.includes('asterion.v1.status') && bridge.includes('asterion.v1.cancel'));
-assert(bridge.includes('listPage')===false, 'Reuse existing recursive metadata index, no second crawler');
+assert(bridge.includes('cloud.listPage(root,1)'), 'Validate the selected folder with the native TeraBox API');
+assert(!bridge.includes('Selected folder is not indexed'), 'Do not depend on the global search index for grants');
+assert(bridge.includes('ensureInventory(root,true)'), 'Grant must start a selected-subtree snapshot');
+assert(bridge.includes('ensureInventory(a.root,false)'), 'Control must resume the same subtree index');
+assert(index.includes('private void scanInventory(') && index.includes('writePage(db,scoped,generation,task,page)'), 'Reuse durable search-index page traversal');
+assert(index.includes('cloud.listPage(task.path,task.page)'), 'Read live folder metadata, not source file bytes');
+assert(index.includes('scope NOT LIKE \'inventory:%\''), 'Full-account index must not delete active subtree snapshots');
 assert(bridge.includes('new FgTeraboxSearchIndex'), 'Index must be the existing scanner');
 assert(bridge.includes('Rounder owner must approve'), 'Owner consent is mandatory');
 assert(bridge.includes('index_not_complete'), 'Do not publish incomplete scans as complete');
