@@ -282,7 +282,7 @@ public final class FgTeraboxSearchIndex extends SQLiteOpenHelper {
             throw new java.io.IOException("TeraBox account changed");
         SQLiteDatabase db=getWritableDatabase();
         State existing=state(db,scoped);
-        if(!force&&existing.active>0&&existing.building==0)return;
+        if(!force&&existing.active>0&&existing.building==0&&existing.error.isEmpty())return;
         int generation=existing.building;
         if(force||generation==0){
             generation=Math.max(existing.active,existing.building)+1;
