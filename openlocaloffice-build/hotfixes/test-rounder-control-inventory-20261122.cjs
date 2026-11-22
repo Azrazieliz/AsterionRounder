@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+function read(path) { return fs.readFileSync(path,'utf8'); }
+const root='app/src/main/';
+const bridge=read(root+'java/com/openlocal/office/core/FgRounderInventoryBridge.java');
+const manifest=read(root+'AndroidManifest.xml');
+const main=read(root+'java/com/openlocal/office/MainActivity.java');
+const js=read(root+'assets/premium-library.js');
+const index=read(root+'java/com/openlocal/office/core/FgTeraboxSearchIndex.java');
+assert(bridge.includes('com.openlocal.office.asterion.bridge'), 'Expected canonical Control authority');
+assert(bridge.includes('Binder.getCallingUid()'), 'Caller identity must be enforced natively');
+assert(bridge.includes('CONTROL_CERT'), 'Installed Control signer must be pinned');
+assert(bridge.includes('ACCESS_MS = 30L * 60L * 1000L'), 'Approval must expire');
+assert(bridge.includes('rounder.inventory.meta') && bridge.includes('rounder.inventory.page'));
+assert(bridge.includes('asterion.v1.capabilities'), 'Capability discovery required');
+assert(bridge.includes('asterion.v1.status') && bridge.includes('asterion.v1.cancel'));
+assert(bridge.includes('listPage')===false, 'Reuse existing recursive metadata index, no second crawler');
+assert(bridge.includes('new FgTeraboxSearchIndex'), 'Index must be the existing scanner');
+assert(bridge.includes('Rounder owner must approve'), 'Owner consent is mandatory');
+assert(bridge.includes('index_not_complete'), 'Do not publish incomplete scans as complete');
+assert(bridge.includes('generation') && bridge.includes('has_more'), 'Generation-safe pagination required');
+assert(bridge.includes('CSV')===false || bridge.includes('csvQuote'), 'Escaped CSV required');
+assert(bridge.includes('openRangeStream')===false, 'Never fetch file bytes for inventory');
+assert(manifest.includes('FgRounderInventoryBridge'), 'Provider must be installed');
+assert(manifest.includes('android:exported="true"'), 'Partner provider must be discoverable');
+assert(main.includes('allowControlInventory(') && main.includes('revokeControlInventory('));
+assert(js.includes('Allow Control inventory (30 min)') && js.includes('revokeControlInventory'));
+assert(index.includes('rounder-terabox-search-v1.db'), 'Index DB contract must match provider');
+console.log('ROUNDER_CONTROL_INVENTORY_SOURCE_GATE_PASS');
