@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - work/nexus-rounder-export-20261128
     paths:
       - 'openlocaloffice-build/**'
       - '.github/workflows/openlocaloffice-build.yml'
@@ -16,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -528,6 +529,16 @@ jobs:
           node ../hotfixes/test-rounder-control-inventory-20261122.cjs
           grep -Fq 'android:authorities="com.openlocal.office.asterion.bridge"' app/src/main/AndroidManifest.xml
 
+      - name: Integrate optional Nexus reader migration exporter
+        working-directory: openlocaloffice-build/project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../hotfixes/apply-nexus-reader-export.py
+          node --check app/src/main/assets/premium-library.js
+          grep -Fq 'RounderMigrationExportActivity' app/src/main/AndroidManifest.xml
+          grep -Fq 'exportNexusReaderMetadata' app/src/main/java/com/openlocal/office/MainActivity.java
+
       - name: Stamp monotonic Android update identity
         working-directory: openlocaloffice-build/project
         shell: bash
@@ -576,79 +587,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # Signing and publishing must not be suppressed by an unrelated
-      # x86_64 Chromium emulator crash. Only the approved certificate is valid.
-      - name: Validate existing release signing credentials
-        shell: bash
-        env:
-          FG_RELEASE_KEYSTORE_BASE64: ${{ secrets.FG_RELEASE_KEYSTORE_BASE64 }}
-          FG_RELEASE_STORE_PASSWORD: ${{ secrets.FG_RELEASE_STORE_PASSWORD }}
-          FG_RELEASE_KEY_ALIAS: ${{ secrets.FG_RELEASE_KEY_ALIAS }}
-          FG_RELEASE_KEY_PASSWORD: ${{ secrets.FG_RELEASE_KEY_PASSWORD }}
-          FG_RELEASE_CERT_SHA256: ${{ secrets.FG_RELEASE_CERT_SHA256 }}
-        run: |
-          set -euo pipefail
-          for name in FG_RELEASE_KEYSTORE_BASE64 FG_RELEASE_STORE_PASSWORD FG_RELEASE_KEY_ALIAS FG_RELEASE_KEY_PASSWORD FG_RELEASE_CERT_SHA256; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Existing release signing configuration is missing: $name. No debug or substitute signing identity will be used."
-              exit 1
-            fi
-          done
-
-      - name: Sign and verify release with preserved signing identity
-        shell: bash
-        env:
-          FG_RELEASE_KEYSTORE_BASE64: ${{ secrets.FG_RELEASE_KEYSTORE_BASE64 }}
-          FG_RELEASE_STORE_PASSWORD: ${{ secrets.FG_RELEASE_STORE_PASSWORD }}
-          FG_RELEASE_KEY_ALIAS: ${{ secrets.FG_RELEASE_KEY_ALIAS }}
-          FG_RELEASE_KEY_PASSWORD: ${{ secrets.FG_RELEASE_KEY_PASSWORD }}
-          FG_RELEASE_CERT_SHA256: ${{ secrets.FG_RELEASE_CERT_SHA256 }}
-        run: |
-          set -euo pipefail
-          umask 077
-          temp_key="$(mktemp)"
-          trap 'rm -f "$temp_key"' EXIT
-          printf '%s' "$FG_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$temp_key"
-          unsigned="openlocaloffice-build/project/app/build/outputs/apk/release/app-release-unsigned.apk"
-          test -s "$unsigned" || { echo "::error::Unsigned release artifact is missing; refusing to re-sign any debug artifact."; exit 1; }
-          destination="openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk"
-          signer="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          "$signer" sign --ks "$temp_key" --ks-type PKCS12 \
-            --ks-key-alias "$FG_RELEASE_KEY_ALIAS" \
-            --ks-pass env:FG_RELEASE_STORE_PASSWORD \
-            --key-pass env:FG_RELEASE_KEY_PASSWORD \
-            --out "$destination" "$unsigned"
-          "$signer" verify --verbose --print-certs "$destination"
-          actual="$("$signer" verify --print-certs "$destination" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
-          expected="$(printf '%s' "$FG_RELEASE_CERT_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
-          if [[ -z "$actual" || "$actual" != "$expected" ]]; then
-            rm -f "$destination"
-            echo "::error::Release signing certificate differs from the approved installed identity."
-            exit 1
-          fi
-          echo "Signed release certificate verified against approved fingerprint."
-
-      - name: Upload signed release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: File-Gestioner-signed-release-apk
-          path: openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Publish signed release candidate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="file-gestioner-release-${{ github.run_number }}"
-          gh release create "$tag" openlocaloffice-build/project/app/build/outputs/apk/release/app-release-signed.apk \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.sha }}" \
-            --title "Asterion Rounder signed release candidate ${{ github.run_number }}" \
-            --notes "Signed release candidate using the preserved File Gestioner signing certificate. Device regression testing required before production rollout." \
-            --prerelease
+      # Migration-source branch is compile-only: no signing, publication, or release creation.
 
       # A test-only internal APK is used solely by the Android emulator.
       # The distributable remains a release APK signed with the preserved key.
